@@ -71,8 +71,3 @@ child_safety_monitoring/
 ├── tests/                          # Tests
 │   ├── __init__.py
 │   └── test_system.py              # System tests
-│
-└── docs/                           # Documentation
-    ├── api.md                      # API documentation
-    ├── user_guide.md               # User guide
-    └── developer_guide.md          # Developer guide
