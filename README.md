@@ -1,57 +1,71 @@
 👶 Child Safety Monitoring System
 A Computer Vision-Based Real-Time Child Safety Monitoring System that uses Deep Learning to detect and analyze children's activities through a webcam, generating alerts for unsafe behaviors.
 
+📋 Table of Contents
+Project Overview
+
+Team Members
+
+Quick Start
+
+Project Structure
+
+How It Works
+
+Configuration
+
+Training
+
+Alert System
+
+Performance
+
+Technologies Used
+
+Future Scope
+
+License
+
 🎯 Project Overview
-This system monitors children in real-time using computer vision and deep learning. It can detect children, estimate their pose, recognize activities (walking, running, sitting, falling, climbing), and generate alerts for unsafe behaviors.
+This system monitors children in real-time using computer vision and deep learning. It can detect children, estimate their pose, recognize activities, and generate alerts for unsafe behaviors.
 
-Key Features
-🎥 Real-time Monitoring: Live video feed with annotations
-
-👤 Child Detection: YOLOv8-based person detection
-
-🦴 Pose Estimation: MediaPipe-based 33-keypoint pose extraction
-
-🏃 Activity Recognition: LSTM-based activity classification
-
-⚠️ Safety Engine: Rule-based unsafe behavior detection
-
-🔔 Alert System: Multi-channel notifications (Email, SMS, Telegram, Desktop)
-
-📊 Dashboard: Web-based monitoring dashboard with statistics
-
-📸 Image Analysis: Upload and analyze single images
-
-💾 Recording: Save video recordings and capture frames
-
-Detected Activities
+✨ Key Features
+Feature	Description
+🎥 Real-time Monitoring	Live video feed with annotations
+👤 Child Detection	YOLOv8-based person detection
+🦴 Pose Estimation	MediaPipe-based 33-keypoint pose extraction
+🏃 Activity Recognition	LSTM-based activity classification
+⚠️ Safety Engine	Rule-based unsafe behavior detection
+🔔 Alert System	Multi-channel notifications
+📊 Dashboard	Web-based monitoring dashboard
+📸 Image Analysis	Upload and analyze single images
+💾 Recording	Save video recordings and capture frames
+🎯 Detected Activities
 Activity	Status	Description
-Walking	✅ Safe	Normal walking behavior
-Running	⚠️ Caution	Running - potential injury risk
-Sitting	✅ Safe	Sitting position
-Falling	🔴 Unsafe	Fall detected - immediate attention required
-Climbing	🔴 Unsafe	Climbing on unsafe surfaces
+🚶 Walking	✅ Safe	Normal walking behavior
+🏃 Running	⚠️ Caution	Running - potential injury risk
+🪑 Sitting	✅ Safe	Sitting position
+💫 Falling	🔴 Unsafe	Fall detected - immediate attention required
+🧗 Climbing	🔴 Unsafe	Climbing on unsafe surfaces
 👥 Team Members
-Name	Roll Number
-Arpit Ojha	-
-Aashutosh Vaish	-
-Shivansh Mishra	303302223199
-Shashwat Khandelwal	303302223197
-Project Guide
+Name	Roll Number	Role
+Arpit Ojha	-	Team Member
+Aashutosh Vaish	-	Team Member
+Shivansh Mishra	303302223199	Team Member
+Shashwat Khandelwal	303302223197	Team Member
+👨‍🏫 Project Guide
 Mrs. Poonam Gupta
 Assistant Professor, Department of Computer Science & Engineering
 SSIPMT, Raipur
 
-Project Details
-Semester: 7th
-
-Batch: 2023-27
-
-Session: July-Dec 2026
-
-Institution: SSIPMT, Raipur
-
+📚 Project Details
+Attribute	Value
+Semester	7th
+Batch	2023-27
+Session	July-Dec 2026
+Institution	SSIPMT, Raipur
 🚀 Quick Start
-Prerequisites
+📋 Prerequisites
 Python 3.10 or higher
 
 Webcam
@@ -60,7 +74,7 @@ Webcam
 
 GPU (optional, for better performance)
 
-Installation
+💻 Installation
 bash
 # Clone or download the project
 cd child_safety_monitoring
@@ -73,7 +87,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
 # Download YOLO model (automatically downloaded on first run)
-Running the System
+▶️ Running the System
 bash
 # Web Interface (Recommended)
 python run.py --mode web
@@ -92,12 +106,13 @@ python run.py --mode synthetic
 
 # Run tests
 python run.py --mode test
-Access Web Interface
+🌐 Access Web Interface
 Open your browser and navigate to: http://localhost:5000
 
 📁 Project Structure
-text
+bash
 child_safety_monitoring/
+│
 ├── app.py                          # Main console application
 ├── flask_app.py                    # Flask web application
 ├── config.py                       # Configuration settings
@@ -148,37 +163,47 @@ child_safety_monitoring/
 ├── saved_models/                   # Trained models
 ├── data/
 │   └── activities/                 # Training videos
+│       ├── walking/
+│       ├── running/
+│       ├── sitting/
+│       ├── falling/
+│       └── climbing/
+│
 ├── captures/                       # Captured frames
 ├── alerts/                         # Alert images
 └── recordings/                     # Recorded videos
 🧠 How It Works
-Processing Pipeline
-text
-Camera → Detection → Pose → Activity Recognition → Safety Check → Alert
-         (YOLOv8)   (MediaPipe)  (LSTM)            (Rules)
-1. Detection (YOLOv8)
+📊 Processing Pipeline
+
+
+
+
+
+
+🔄 Step-by-Step Flow
+1. 📸 Detection (YOLOv8)
 Detects persons in the frame
 
 Returns bounding boxes with confidence scores
 
-2. Pose Estimation (MediaPipe)
+2. 🦴 Pose Estimation (MediaPipe)
 Extracts 33 body keypoints (x, y, z, visibility)
 
 Tracks body position and movement
 
-3. Activity Recognition (LSTM)
+3. 🧠 Activity Recognition (LSTM)
 Buffers 30 frames of keypoint sequences
 
 Classifies activity: walking, running, sitting, falling, climbing
 
-4. Safety Engine
+4. ⚠️ Safety Engine
 Checks if activity is unsafe
 
 Additional pose-based fall detection
 
 Zone violation detection
 
-5. Alert System
+5. 🔔 Alert System
 Generates alerts for unsafe behaviors
 
 Multi-channel notifications
@@ -194,39 +219,40 @@ v	Toggle visualization info
 🔧 Configuration
 Edit config.py to customize system parameters:
 
+Model Settings
 python
-# Model Settings
 YOLO_MODEL = 'yolov8n.pt'        # YOLO model variant
 CONFIDENCE_THRESHOLD = 0.5       # Detection threshold
 SEQUENCE_LENGTH = 30              # Frames per sequence
-
-# Camera Settings
+Camera Settings
+python
 FRAME_WIDTH = 640                # Processing width
 FRAME_HEIGHT = 480               # Processing height
 FPS = 30                         # Camera FPS
-
-# Safety Rules
+Safety Rules
+python
 UNSAFE_ACTIVITIES = ['falling', 'climbing']
 FALL_DETECTION_THRESHOLD = 0.6
-
-# Alert Settings
+Alert Settings
+python
 ALERT_COOLDOWN_SECONDS = 5
 MAX_ALERTS_PER_MINUTE = 10
 📊 Training
-Prepare Training Data
+📁 Prepare Training Data
 Add videos to data/activities/[activity_name]/
 
 Extract features:
 
 bash
 python data_preparation.py --process
-Generate Synthetic Data
+🎲 Generate Synthetic Data
 bash
 python data_preparation.py --synthetic 200
-Train Model
+🏋️ Train Model
 bash
 python run.py --mode train
-🔔 Alert Configuration
+🔔 Alert System
+📝 Configuration
 Create alert_config.json (copy from alert_config.example.json):
 
 json
@@ -247,23 +273,28 @@ json
         "cooldown_seconds": 5
     }
 }
+📧 Supported Methods
+Method	Description
+💻 Desktop	Console notification with sound
+📧 Email	SMTP email alerts
+📱 SMS	Twilio SMS alerts
+📨 Telegram	Telegram bot messages
+🔗 Webhook	HTTP callbacks
 🧪 Testing
-Run the test suite:
-
+Run Test Suite
 bash
 python run.py --mode test
-Or manually:
-
+Manual Testing
 bash
 python -m pytest tests/ -v
 📈 Performance
-System Requirements
+💻 System Requirements
 Component	Minimum	Recommended
 CPU	Intel i5	Intel i7 / AMD Ryzen 7
 RAM	8GB	16GB
 GPU	None	NVIDIA GTX 1060+
 Storage	2GB	10GB
-Performance Metrics
+📊 Performance Metrics
 Operation	CPU Only	With GPU
 Detection	10-15 FPS	25-30 FPS
 Pose Estimation	15-20 FPS	30+ FPS
@@ -280,10 +311,19 @@ Flask	Web interface framework
 Socket.IO	Real-time updates
 Bootstrap	Frontend styling
 Chart.js	Dashboard charts
-📝 License & Credits
+🔮 Future Scope
+□ Mobile application for remote monitoring
+□ Cloud-based storage for recordings
+□ Multi-camera support
+□ Facial recognition for child identification
+□ Voice alerts
+□ Integration with smart home devices
+□ Real-time notification via SMS/WhatsApp
+□ Advanced analytics and reporting
+📝 License
 This project is developed as part of the 7th Semester Project at SSIPMT, Raipur.
 
-Team Members
+👥 Team Members
 Arpit Ojha
 
 Aashutosh Vaish
@@ -292,10 +332,10 @@ Shivansh Mishra (303302223199)
 
 Shashwat Khandelwal (303302223197)
 
-Project Guide
+👨‍🏫 Project Guide
 Mrs. Poonam Gupta, Assistant Professor, CSE
 
-Acknowledgments
+🙏 Acknowledgments
 YOLOv8 by Ultralytics
 
 MediaPipe by Google
@@ -303,9 +343,6 @@ MediaPipe by Google
 PyTorch by Meta
 
 Flask for web framework
-
-📞 Contact
-For questions or support, please contact the project team.
 
 📚 References
 Ultralytics YOLOv8 Documentation
@@ -316,15 +353,7 @@ PyTorch LSTM Documentation
 
 Flask Web Framework Documentation
 
-🔮 Future Scope
-□ Mobile application for remote monitoring
-□ Cloud-based storage for recordings
-□ Multi-camera support
-□ Facial recognition for child identification
-□ Voice alerts
-□ Integration with smart home devices
-□ Real-time notification via SMS/WhatsApp
-□ Advanced analytics and reporting
-⭐ If you find this project useful, please star it on GitHub!
+📞 Contact
+For questions or support, please contact the project team.
 
-<div align="center"> <p><b>SSIPMT, Raipur | 7th Semester | 2023-27</b></p> <p><i>Computer Vision-Based Child Safety Monitoring System</i></p> </div>
+<div align="center"> <p> <b>SSIPMT, Raipur | 7th Semester | 2023-27</b><br> <i>Computer Vision-Based Child Safety Monitoring System</i> </p> <br> <p> <a href="#"><img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python"></a> <a href="#"><img src="https://img.shields.io/badge/OpenCV-4.8.1-green.svg" alt="OpenCV"></a> <a href="#"><img src="https://img.shields.io/badge/PyTorch-2.1.0-red.svg" alt="PyTorch"></a> <a href="#"><img src="https://img.shields.io/badge/Flask-2.3.3-lightgrey.svg" alt="Flask"></a> <a href="#"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"></a> </p> <p> ⭐ If you find this project useful, please star it on GitHub! ⭐ </p> </div>
