@@ -1,0 +1,78 @@
+child_safety_monitoring/
+│
+├── app.py                          # Main console application
+├── flask_app.py                    # Flask web application
+├── config.py                       # Configuration settings
+├── data_preparation.py             # Data preparation script
+├── requirements.txt                # Python dependencies
+├── setup.py                        # Package setup
+├── run.py                          # Launcher script
+├── alert_config.json               # Alert configuration
+├── alert_config.example.json       # Example alert configuration
+├── .gitignore                      # Git ignore file
+├── README.md                       # Project documentation
+│
+├── models/                         # ML Models
+│   ├── __init__.py
+│   ├── detector.py                 # YOLOv8 child detection
+│   ├── pose_estimator.py           # MediaPipe pose estimation
+│   ├── activity_recognizer.py      # LSTM activity recognition
+│   ├── safety_engine.py            # Safety rule engine
+│   └── tracker.py                  # Multi-person tracking
+│
+├── utils/                          # Utilities
+│   ├── __init__.py
+│   ├── alert.py                    # Basic alert system
+│   ├── alert_advanced.py           # Advanced alert with email/SMS
+│   ├── visualization.py            # Visualization utilities
+│   └── performance_monitor.py      # Performance monitoring
+│
+├── static/                         # Static web files
+│   ├── css/
+│   │   └── style.css              # Custom CSS styles
+│   ├── js/
+│   │   ├── script.js              # Main JavaScript
+│   │   ├── dashboard.js           # Dashboard JavaScript
+│   │   └── alerts.js              # Alerts JavaScript
+│   └── uploads/                    # Uploaded images
+│
+├── templates/                      # HTML Templates
+│   ├── index.html                  # Home page
+│   ├── dashboard.html              # Dashboard page
+│   ├── alerts.html                 # Alerts page
+│   ├── about.html                  # About page
+│   └── settings.html               # Settings page
+│
+├── saved_models/                   # Trained models
+│   ├── activity_model.pth          # Trained LSTM model
+│   ├── best_activity_model.pth     # Best performing model
+│   └── model_info.json             # Model metadata
+│
+├── data/                           # Training data
+│   ├── activities/                 # Video files
+│   │   ├── walking/
+│   │   ├── running/
+│   │   ├── sitting/
+│   │   ├── falling/
+│   │   └── climbing/
+│   ├── training_data.npz           # Extracted training data
+│   ├── training_data_synthetic.npz # Synthetic training data
+│   └── training_data.json          # Data metadata
+│
+├── captures/                       # Captured frames
+│   └── capture_*.jpg
+│
+├── alerts/                         # Alert images
+│   └── alert_*.jpg
+│
+├── recordings/                     # Recorded videos
+│   └── monitoring_*.mp4
+│
+├── tests/                          # Tests
+│   ├── __init__.py
+│   └── test_system.py              # System tests
+│
+└── docs/                           # Documentation
+    ├── api.md                      # API documentation
+    ├── user_guide.md               # User guide
+    └── developer_guide.md          # Developer guide

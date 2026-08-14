@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyTorch
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.pb
+*.onnx
+
+# MediaPipe
+*.task
+*.tflite
+
+# Project specific
+data/training_data*.npz
+data/activities/
+saved_models/*.pth
+saved_models/*.pt
+captures/
+static/uploads/
+alerts/
+recordings/
+alert_log_*.txt
+alert_log.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.iml
+.DS_Store
+
+# OS
+.DS_Store
+Thumbs.db
+._*
+*.log
+
+# Environment
+.env
+.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Streamlit
+.streamlit/
+
+# Flask
+instance/
+.webassets-cache
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Documentation
+docs/_build/
