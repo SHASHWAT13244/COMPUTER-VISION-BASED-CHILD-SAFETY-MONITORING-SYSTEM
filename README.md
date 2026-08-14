@@ -692,10 +692,10 @@ The project can be extended with the following features:
 
 | Name                    | Roll Number    | Role        |
 | ----------------------- | -------------- | ----------- |
-| **Arpit Ojha**          | —              | Team Member |
-| **Aashutosh Vaish**     | —              | Team Member |
+| **Arpit Ojha**          | `303302223004` | Team Member |
+| **Aashutosh Vaish**     | `303302223049` | Team Member |
 | **Shivansh Mishra**     | `303302223199` | Team Member |
-| **Shashwat Khandelwal** | `303302223197` | Team Member |
+| **Shashwat Khandelwal** | `303302223197` | Team Leader |
 
 ---
 
@@ -768,7 +768,7 @@ The system is intended as an **assistive monitoring tool**, not as a replacement
 
 This project is developed as part of the **7th Semester Project at SSIPMT, Raipur**.
 
-If this repository is intended to use the MIT License, add the corresponding `LICENSE` file to the repository and keep the licensing terms consistent with that file.
+
 
 ---
 
