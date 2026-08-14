@@ -1,359 +1,787 @@
-👶 Child Safety Monitoring System
-A Computer Vision-Based Real-Time Child Safety Monitoring System that uses Deep Learning to detect and analyze children's activities through a webcam, generating alerts for unsafe behaviors.
+# 👶 Computer Vision-Based Child Safety Monitoring System
 
-📋 Table of Contents
-Project Overview
+> **A real-time AI-powered child safety monitoring system using computer vision and deep learning to detect activities, identify potentially unsafe behavior, and generate alerts.**
 
-Team Members
+**SSIPMT, Raipur | 7th Semester Project | Batch 2023–27 | Session: July–December 2026**
 
-Quick Start
+---
 
-Project Structure
+## 📌 Table of Contents
 
-How It Works
+* [Overview](#-overview)
+* [Key Features](#-key-features)
+* [Detected Activities](#-detected-activities)
+* [System Architecture](#-system-architecture)
+* [How It Works](#-how-it-works)
+* [Project Structure](#-project-structure)
+* [Technologies Used](#-technologies-used)
+* [Requirements](#-requirements)
+* [Installation](#-installation)
+* [Running the Application](#-running-the-application)
+* [Web Interface](#-web-interface)
+* [Configuration](#-configuration)
+* [Training](#-training)
+* [Alert System](#-alert-system)
+* [Testing](#-testing)
+* [Performance](#-performance)
+* [Keyboard Shortcuts](#-keyboard-shortcuts)
+* [Team Members](#-team-members)
+* [Project Guide](#-project-guide)
+* [Future Scope](#-future-scope)
+* [Acknowledgments](#-acknowledgments)
+* [References](#-references)
+* [License](#-license)
 
-Configuration
+---
 
-Training
+## 🎯 Overview
 
-Alert System
+The **Computer Vision-Based Child Safety Monitoring System** is an AI-powered application designed to monitor children's activities in real time using a webcam.
 
-Performance
+The system combines:
 
-Technologies Used
+* 🎥 Real-time video processing
+* 👤 Person/child detection
+* 🦴 Human pose estimation
+* 🧠 Deep-learning-based activity recognition
+* ⚠️ Rule-based safety analysis
+* 🔔 Multi-channel alerts
+* 📊 Web-based monitoring
+* 📸 Image analysis
+* 💾 Video recording and frame capture
 
-Future Scope
+The primary objective is to identify potentially unsafe activities such as **falling** and **climbing** and notify the responsible person as quickly as possible.
 
-License
+> **Note:** The detection pipeline uses a YOLO-based person detector. If child-specific detection is required, the detector can be fine-tuned on a child-specific dataset.
 
-🎯 Project Overview
-This system monitors children in real-time using computer vision and deep learning. It can detect children, estimate their pose, recognize activities, and generate alerts for unsafe behaviors.
+---
 
-✨ Key Features
-Feature	Description
-🎥 Real-time Monitoring	Live video feed with annotations
-👤 Child Detection	YOLOv8-based person detection
-🦴 Pose Estimation	MediaPipe-based 33-keypoint pose extraction
-🏃 Activity Recognition	LSTM-based activity classification
-⚠️ Safety Engine	Rule-based unsafe behavior detection
-🔔 Alert System	Multi-channel notifications
-📊 Dashboard	Web-based monitoring dashboard
-📸 Image Analysis	Upload and analyze single images
-💾 Recording	Save video recordings and capture frames
-🎯 Detected Activities
-Activity	Status	Description
-🚶 Walking	✅ Safe	Normal walking behavior
-🏃 Running	⚠️ Caution	Running - potential injury risk
-🪑 Sitting	✅ Safe	Sitting position
-💫 Falling	🔴 Unsafe	Fall detected - immediate attention required
-🧗 Climbing	🔴 Unsafe	Climbing on unsafe surfaces
-👥 Team Members
-Name	Roll Number	Role
-Arpit Ojha	-	Team Member
-Aashutosh Vaish	-	Team Member
-Shivansh Mishra	303302223199	Team Member
-Shashwat Khandelwal	303302223197	Team Member
-👨‍🏫 Project Guide
-Mrs. Poonam Gupta
-Assistant Professor, Department of Computer Science & Engineering
-SSIPMT, Raipur
+## ✨ Key Features
 
-📚 Project Details
-Attribute	Value
-Semester	7th
-Batch	2023-27
-Session	July-Dec 2026
-Institution	SSIPMT, Raipur
-🚀 Quick Start
-📋 Prerequisites
-Python 3.10 or higher
+| Feature                  | Description                                                 |
+| ------------------------ | ----------------------------------------------------------- |
+| 🎥 Real-Time Monitoring  | Processes live webcam footage and displays annotated frames |
+| 👤 Person Detection      | YOLOv8-based detection of people in the scene               |
+| 🦴 Pose Estimation       | MediaPipe extracts 33 body landmarks                        |
+| 🏃 Activity Recognition  | LSTM classifies sequences of body movements                 |
+| ⚠️ Safety Engine         | Applies rules to identify potentially unsafe behavior       |
+| 🔔 Alert System          | Supports desktop, email, Telegram, SMS, and webhook alerts  |
+| 📊 Dashboard             | Web-based interface for monitoring activities and alerts    |
+| 📸 Image Analysis        | Upload and analyze individual images                        |
+| 💾 Recording             | Save monitoring videos and important frames                 |
+| 👥 Multi-Person Tracking | Tracks multiple people within the camera view               |
+| 🚦 Alert Throttling      | Prevents excessive repeated notifications                   |
 
-Webcam
+---
 
-8GB+ RAM (recommended)
+## 🏃 Detected Activities
 
-GPU (optional, for better performance)
+| Activity    | Status     | Description                                  |
+| ----------- | ---------- | -------------------------------------------- |
+| 🚶 Walking  | 🟢 Safe    | Normal walking behavior                      |
+| 🏃 Running  | 🟡 Caution | Running may increase the risk of injury      |
+| 🪑 Sitting  | 🟢 Safe    | Normal sitting position                      |
+| 💫 Falling  | 🔴 Unsafe  | Potential fall requiring immediate attention |
+| 🧗 Climbing | 🔴 Unsafe  | Potentially dangerous climbing behavior      |
 
-💻 Installation
-bash
-# Clone or download the project
-cd child_safety_monitoring
+---
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+## 🏗️ System Architecture
 
-# Install dependencies
-pip install -r requirements.txt
+```text
+                  ┌─────────────────────┐
+                  │   Webcam / Image    │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │   OpenCV Processing │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │     YOLOv8          │
+                  │  Person Detection   │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │   MediaPipe Pose    │
+                  │  33 Body Keypoints  │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │   Frame Sequence    │
+                  │    Buffer (30)      │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │   LSTM Activity     │
+                  │    Recognition      │
+                  └──────────┬──────────┘
+                             │
+                             ▼
+                  ┌─────────────────────┐
+                  │    Safety Engine    │
+                  │ Rules + Pose Check  │
+                  └──────────┬──────────┘
+                             │
+                    ┌────────┴────────┐
+                    ▼                 ▼
+             ┌─────────────┐   ┌─────────────┐
+             │ Safe/Caution│   │ Unsafe Event│
+             └─────────────┘   └──────┬──────┘
+                                       │
+                                       ▼
+                              ┌────────────────┐
+                              │  Alert System  │
+                              └───────┬────────┘
+                                      │
+                 ┌────────────┬───────┼────────┬──────────┐
+                 ▼            ▼       ▼        ▼          ▼
+              Desktop      Email   Telegram   SMS      Webhook
+```
 
-# Download YOLO model (automatically downloaded on first run)
-▶️ Running the System
-bash
-# Web Interface (Recommended)
-python run.py --mode web
+---
 
-# Console Monitoring
-python run.py --mode monitor
+## 🧠 How It Works
 
-# Train the model
-python run.py --mode train
+### 1. 📸 Frame Acquisition
 
-# Prepare training data
-python run.py --mode prepare
+The webcam continuously captures video frames using OpenCV.
 
-# Generate synthetic data
-python run.py --mode synthetic
+The frames are resized and preprocessed before being passed to the detection pipeline.
 
-# Run tests
-python run.py --mode test
-🌐 Access Web Interface
-Open your browser and navigate to: http://localhost:5000
+### 2. 👤 Person Detection
 
-📁 Project Structure
-bash
+YOLOv8 identifies people within each frame and provides:
+
+* Bounding boxes
+* Confidence scores
+* Object classes
+
+### 3. 🦴 Pose Estimation
+
+MediaPipe Pose extracts **33 body landmarks** for each detected person.
+
+Each landmark contains:
+
+* `x` coordinate
+* `y` coordinate
+* `z` coordinate
+* Visibility score
+
+These landmarks provide the information required for activity recognition.
+
+### 4. 🧠 Activity Recognition
+
+A sequence of pose information is collected over multiple frames.
+
+The default configuration uses:
+
+```text
+Sequence Length = 30 frames
+```
+
+The LSTM model analyzes the temporal movement pattern and classifies it as:
+
+```text
+Walking
+Running
+Sitting
+Falling
+Climbing
+```
+
+### 5. ⚠️ Safety Analysis
+
+The Safety Engine combines activity predictions with additional rules.
+
+Examples include:
+
+* Fall detection
+* Unsafe climbing detection
+* Zone violations
+* Activity confidence checks
+* Alert cooldowns
+
+### 6. 🔔 Alert Generation
+
+When an unsafe event is detected, the system generates an alert.
+
+Depending on configuration, alerts can be delivered through:
+
+* Desktop notification
+* Email
+* Telegram
+* SMS
+* Webhook
+
+Alert throttling is implemented to reduce repeated notifications.
+
+---
+
+## 📁 Project Structure
+
+```text
 child_safety_monitoring/
 │
-├── app.py                          # Main console application
-├── flask_app.py                    # Flask web application
-├── config.py                       # Configuration settings
-├── data_preparation.py             # Data preparation script
-├── data_augmentation.py            # Data augmentation
-├── requirements.txt                # Python dependencies
-├── run.py                          # Launcher script
-├── setup.py                        # Package setup
-├── alert_config.example.json       # Example alert config
-├── .gitignore                      # Git ignore file
-├── README.md                       # Documentation
+├── app.py
+├── flask_app.py
+├── config.py
+├── data_preparation.py
+├── data_augmentation.py
+├── requirements.txt
+├── run.py
+├── setup.py
+├── alert_config.example.json
+├── README.md
+├── .gitignore
 │
-├── models/                         # ML Models
+├── models/
 │   ├── __init__.py
-│   ├── detector.py                 # YOLOv8 child detection
-│   ├── pose_estimator.py           # MediaPipe pose estimation
-│   ├── activity_recognizer.py      # LSTM activity recognition
-│   ├── safety_engine.py            # Safety rule engine
-│   └── tracker.py                  # Multi-person tracking
+│   ├── detector.py
+│   ├── pose_estimator.py
+│   ├── activity_recognizer.py
+│   ├── safety_engine.py
+│   └── tracker.py
 │
-├── utils/                          # Utilities
+├── utils/
 │   ├── __init__.py
-│   ├── alert.py                    # Basic alert system
-│   ├── alert_advanced.py           # Advanced alert with email/SMS
-│   ├── visualization.py            # Visualization utilities
-│   └── performance_monitor.py      # Performance monitoring
+│   ├── alert.py
+│   ├── alert_advanced.py
+│   ├── visualization.py
+│   └── performance_monitor.py
 │
-├── static/                         # Web static files
+├── static/
 │   ├── css/
 │   │   └── style.css
 │   ├── js/
 │   │   ├── script.js
 │   │   ├── dashboard.js
 │   │   └── alerts.js
-│   └── uploads/                    # Uploaded images
+│   └── uploads/
 │
-├── templates/                      # HTML templates
-│   ├── index.html                  # Home page
-│   ├── dashboard.html              # Dashboard page
-│   ├── alerts.html                 # Alerts page
-│   ├── about.html                  # About page
-│   └── settings.html               # Settings page
+├── templates/
+│   ├── index.html
+│   ├── dashboard.html
+│   ├── alerts.html
+│   ├── about.html
+│   └── settings.html
 │
-├── tests/                          # Tests
+├── tests/
 │   ├── __init__.py
-│   └── test_system.py              # System tests
+│   └── test_system.py
 │
-├── saved_models/                   # Trained models
+├── saved_models/
+│
 ├── data/
-│   └── activities/                 # Training videos
+│   └── activities/
 │       ├── walking/
 │       ├── running/
 │       ├── sitting/
 │       ├── falling/
 │       └── climbing/
 │
-├── captures/                       # Captured frames
-├── alerts/                         # Alert images
-└── recordings/                     # Recorded videos
-🧠 How It Works
-📊 Processing Pipeline
+├── captures/
+├── alerts/
+└── recordings/
+```
 
+---
 
+## 🛠️ Technologies Used
 
+| Technology       | Purpose                              |
+| ---------------- | ------------------------------------ |
+| **Python 3.10+** | Core programming language            |
+| **OpenCV**       | Video processing and computer vision |
+| **YOLOv8**       | Person detection                     |
+| **MediaPipe**    | Human pose estimation                |
+| **PyTorch**      | LSTM activity recognition            |
+| **Flask**        | Web application framework            |
+| **Socket.IO**    | Real-time communication              |
+| **Bootstrap**    | Frontend UI                          |
+| **Chart.js**     | Dashboard visualization              |
 
+---
 
+## 💻 Requirements
 
-🔄 Step-by-Step Flow
-1. 📸 Detection (YOLOv8)
-Detects persons in the frame
+### Minimum Requirements
 
-Returns bounding boxes with confidence scores
+| Component | Minimum                    |
+| --------- | -------------------------- |
+| CPU       | Intel Core i5 / equivalent |
+| RAM       | 8 GB                       |
+| GPU       | Not required               |
+| Storage   | 2 GB                       |
+| Python    | 3.10+                      |
+| Camera    | Webcam                     |
 
-2. 🦴 Pose Estimation (MediaPipe)
-Extracts 33 body keypoints (x, y, z, visibility)
+### Recommended Requirements
 
-Tracks body position and movement
+| Component | Recommended                 |
+| --------- | --------------------------- |
+| CPU       | Intel Core i7 / AMD Ryzen 7 |
+| RAM       | 16 GB                       |
+| GPU       | NVIDIA GTX 1060 or better   |
+| Storage   | 10 GB                       |
+| Camera    | HD Webcam                   |
 
-3. 🧠 Activity Recognition (LSTM)
-Buffers 30 frames of keypoint sequences
+A GPU is optional but can significantly improve real-time performance.
 
-Classifies activity: walking, running, sitting, falling, climbing
+---
 
-4. ⚠️ Safety Engine
-Checks if activity is unsafe
+## 🚀 Installation
 
-Additional pose-based fall detection
+### 1. Clone the Repository
 
-Zone violation detection
+```bash
+git clone <your-repository-url>
+cd child_safety_monitoring
+```
 
-5. 🔔 Alert System
-Generates alerts for unsafe behaviors
+### 2. Create a Virtual Environment
 
-Multi-channel notifications
+#### Windows
 
-Throttling to prevent spam
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
 
-🎮 Keyboard Shortcuts
-Key	Action
-q	Quit monitoring
-s	Save current frame
-r	Reset system state
-v	Toggle visualization info
-🔧 Configuration
-Edit config.py to customize system parameters:
+#### Linux / macOS
 
-Model Settings
-python
-YOLO_MODEL = 'yolov8n.pt'        # YOLO model variant
-CONFIDENCE_THRESHOLD = 0.5       # Detection threshold
-SEQUENCE_LENGTH = 30              # Frames per sequence
-Camera Settings
-python
-FRAME_WIDTH = 640                # Processing width
-FRAME_HEIGHT = 480               # Processing height
-FPS = 30                         # Camera FPS
-Safety Rules
-python
-UNSAFE_ACTIVITIES = ['falling', 'climbing']
-FALL_DETECTION_THRESHOLD = 0.6
-Alert Settings
-python
-ALERT_COOLDOWN_SECONDS = 5
-MAX_ALERTS_PER_MINUTE = 10
-📊 Training
-📁 Prepare Training Data
-Add videos to data/activities/[activity_name]/
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
 
-Extract features:
+### 3. Install Dependencies
 
-bash
-python data_preparation.py --process
-🎲 Generate Synthetic Data
-bash
-python data_preparation.py --synthetic 200
-🏋️ Train Model
-bash
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 4. Connect a Webcam
+
+Connect a webcam to your computer and make sure it is accessible by OpenCV.
+
+The YOLO model will be downloaded automatically on its first use if configured accordingly.
+
+---
+
+## ▶️ Running the Application
+
+### 🌐 Web Interface
+
+The recommended way to run the project:
+
+```bash
+python run.py --mode web
+```
+
+Then open:
+
+```text
+http://localhost:5000
+```
+
+### 🖥️ Console Monitoring
+
+```bash
+python run.py --mode monitor
+```
+
+### 🏋️ Train the Activity Model
+
+```bash
 python run.py --mode train
-🔔 Alert System
-📝 Configuration
-Create alert_config.json (copy from alert_config.example.json):
+```
 
-json
+### 📦 Prepare Training Data
+
+```bash
+python run.py --mode prepare
+```
+
+### 🎲 Generate Synthetic Data
+
+```bash
+python run.py --mode synthetic
+```
+
+### 🧪 Run Tests
+
+```bash
+python run.py --mode test
+```
+
+---
+
+## 🌐 Web Interface
+
+The Flask-based web application provides a centralized monitoring dashboard.
+
+### Main Pages
+
+| Page         | Purpose                             |
+| ------------ | ----------------------------------- |
+| 🏠 Home      | Main monitoring interface           |
+| 📊 Dashboard | Activity and performance statistics |
+| 🚨 Alerts    | View detected safety alerts         |
+| ℹ️ About     | Project information                 |
+| ⚙️ Settings  | Configure monitoring parameters     |
+
+The dashboard can display real-time information such as:
+
+* Current activity
+* Detection status
+* Confidence score
+* FPS
+* Number of detected people
+* Safety status
+* Recent alerts
+
+---
+
+## 🔧 Configuration
+
+The main configuration can be modified in:
+
+```text
+config.py
+```
+
+### Model Settings
+
+```python
+YOLO_MODEL = "yolov8n.pt"
+
+CONFIDENCE_THRESHOLD = 0.5
+
+SEQUENCE_LENGTH = 30
+```
+
+### Camera Settings
+
+```python
+FRAME_WIDTH = 640
+FRAME_HEIGHT = 480
+FPS = 30
+```
+
+### Safety Rules
+
+```python
+UNSAFE_ACTIVITIES = [
+    "falling",
+    "climbing"
+]
+
+FALL_DETECTION_THRESHOLD = 0.6
+```
+
+### Alert Settings
+
+```python
+ALERT_COOLDOWN_SECONDS = 5
+
+MAX_ALERTS_PER_MINUTE = 10
+```
+
+---
+
+## 🏋️ Training
+
+The activity recognition model can be trained using activity videos.
+
+### Dataset Structure
+
+Place training videos into the appropriate directories:
+
+```text
+data/
+└── activities/
+    ├── walking/
+    ├── running/
+    ├── sitting/
+    ├── falling/
+    └── climbing/
+```
+
+### Prepare Training Data
+
+```bash
+python data_preparation.py --process
+```
+
+This process extracts pose/keypoint information from the videos and prepares the data for model training.
+
+### Generate Synthetic Data
+
+```bash
+python data_preparation.py --synthetic 200
+```
+
+### Train the Model
+
+```bash
+python run.py --mode train
+```
+
+Trained models are stored in:
+
+```text
+saved_models/
+```
+
+---
+
+## 🔔 Alert System
+
+The system supports multiple notification methods.
+
+### Supported Methods
+
+| Method      | Description                        |
+| ----------- | ---------------------------------- |
+| 💻 Desktop  | Local notification and sound       |
+| 📧 Email    | SMTP-based email notifications     |
+| 📱 SMS      | SMS through a supported provider   |
+| 📨 Telegram | Telegram bot notifications         |
+| 🔗 Webhook  | HTTP callback for external systems |
+
+---
+
+## ⚙️ Alert Configuration
+
+Create:
+
+```text
+alert_config.json
+```
+
+using:
+
+```text
+alert_config.example.json
+```
+
+as a template.
+
+Example:
+
+```json
 {
-    "enabled_methods": ["desktop", "email", "telegram"],
+    "enabled_methods": [
+        "desktop",
+        "email",
+        "telegram"
+    ],
     "email": {
         "smtp_server": "smtp.gmail.com",
         "sender_email": "your_email@gmail.com",
         "sender_password": "your_app_password",
-        "recipient_emails": ["recipient@email.com"]
+        "recipient_emails": [
+            "recipient@email.com"
+        ]
     },
     "telegram": {
         "bot_token": "your_bot_token",
-        "chat_ids": ["chat_id"]
+        "chat_ids": [
+            "chat_id"
+        ]
     },
     "throttling": {
         "max_alerts_per_minute": 10,
         "cooldown_seconds": 5
     }
 }
-📧 Supported Methods
-Method	Description
-💻 Desktop	Console notification with sound
-📧 Email	SMTP email alerts
-📱 SMS	Twilio SMS alerts
-📨 Telegram	Telegram bot messages
-🔗 Webhook	HTTP callbacks
-🧪 Testing
-Run Test Suite
-bash
+```
+
+### 🔐 Security Recommendation
+
+**Never commit `alert_config.json` containing passwords, API keys, bot tokens, or other credentials to GitHub.**
+
+Add it to `.gitignore`:
+
+```gitignore
+alert_config.json
+.env
+*.key
+*.pem
+```
+
+For production deployments, environment variables or a secure secret-management system should be preferred.
+
+---
+
+## 🧪 Testing
+
+### Run the Complete Test Suite
+
+```bash
 python run.py --mode test
-Manual Testing
-bash
+```
+
+### Run Pytest Directly
+
+```bash
 python -m pytest tests/ -v
-📈 Performance
-💻 System Requirements
-Component	Minimum	Recommended
-CPU	Intel i5	Intel i7 / AMD Ryzen 7
-RAM	8GB	16GB
-GPU	None	NVIDIA GTX 1060+
-Storage	2GB	10GB
-📊 Performance Metrics
-Operation	CPU Only	With GPU
-Detection	10-15 FPS	25-30 FPS
-Pose Estimation	15-20 FPS	30+ FPS
-Activity Recognition	20-25 FPS	30+ FPS
-Overall	8-12 FPS	20-25 FPS
-🛠️ Technologies Used
-Technology	Purpose
-Python 3.10+	Core programming language
-OpenCV	Video processing and computer vision
-YOLOv8	Child/person detection
-MediaPipe	Pose estimation
-PyTorch	Deep learning framework for LSTM
-Flask	Web interface framework
-Socket.IO	Real-time updates
-Bootstrap	Frontend styling
-Chart.js	Dashboard charts
-🔮 Future Scope
-□ Mobile application for remote monitoring
-□ Cloud-based storage for recordings
-□ Multi-camera support
-□ Facial recognition for child identification
-□ Voice alerts
-□ Integration with smart home devices
-□ Real-time notification via SMS/WhatsApp
-□ Advanced analytics and reporting
-📝 License
-This project is developed as part of the 7th Semester Project at SSIPMT, Raipur.
+```
 
-👥 Team Members
-Arpit Ojha
+The test suite is located in:
 
-Aashutosh Vaish
+```text
+tests/test_system.py
+```
 
-Shivansh Mishra (303302223199)
+---
 
-Shashwat Khandelwal (303302223197)
+## 📊 Performance
 
-👨‍🏫 Project Guide
-Mrs. Poonam Gupta, Assistant Professor, CSE
+The following are approximate target/observed performance figures and can vary depending on hardware, camera resolution, model configuration, and workload.
 
-🙏 Acknowledgments
-YOLOv8 by Ultralytics
+| Operation            |  CPU Only |  With GPU |
+| -------------------- | --------: | --------: |
+| Detection            | 10–15 FPS | 25–30 FPS |
+| Pose Estimation      | 15–20 FPS |   30+ FPS |
+| Activity Recognition | 20–25 FPS |   30+ FPS |
+| Overall Pipeline     |  8–12 FPS | 20–25 FPS |
 
-MediaPipe by Google
+Actual performance should be benchmarked on the target deployment hardware.
 
-PyTorch by Meta
+---
 
-Flask for web framework
+## ⌨️ Keyboard Shortcuts
 
-📚 References
-Ultralytics YOLOv8 Documentation
+| Key | Action                           |
+| --- | -------------------------------- |
+| `Q` | Quit monitoring                  |
+| `S` | Save current frame               |
+| `R` | Reset system state               |
+| `V` | Toggle visualization information |
 
-MediaPipe Pose Estimation Guide
+---
 
-PyTorch LSTM Documentation
+## 🔮 Future Scope
 
-Flask Web Framework Documentation
+The project can be extended with the following features:
 
-📞 Contact
-For questions or support, please contact the project team.
+* [ ] 📱 Mobile application for remote monitoring
+* [ ] ☁️ Cloud-based recording storage
+* [ ] 📹 Multi-camera support
+* [ ] 🧑‍🧒 Child-specific identification
+* [ ] 🔊 Voice-based safety alerts
+* [ ] 🏠 Smart-home integration
+* [ ] 📱 WhatsApp/SMS notification integration
+* [ ] 📈 Advanced analytics and reporting
+* [ ] 🗺️ Configurable danger zones
+* [ ] 👥 Improved multi-person tracking
+* [ ] 🤖 More advanced activity recognition models
+* [ ] 🔒 Privacy-preserving local processing
 
-<div align="center"> <p> <b>SSIPMT, Raipur | 7th Semester | 2023-27</b><br> <i>Computer Vision-Based Child Safety Monitoring System</i> </p> <br> <p> <a href="#"><img src="https://img.shields.io/badge/Python-3.10+-blue.svg" alt="Python"></a> <a href="#"><img src="https://img.shields.io/badge/OpenCV-4.8.1-green.svg" alt="OpenCV"></a> <a href="#"><img src="https://img.shields.io/badge/PyTorch-2.1.0-red.svg" alt="PyTorch"></a> <a href="#"><img src="https://img.shields.io/badge/Flask-2.3.3-lightgrey.svg" alt="Flask"></a> <a href="#"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License"></a> </p> <p> ⭐ If you find this project useful, please star it on GitHub! ⭐ </p> </div>
+---
+
+## 👥 Team Members
+
+| Name                    | Roll Number    | Role        |
+| ----------------------- | -------------- | ----------- |
+| **Arpit Ojha**          | —              | Team Member |
+| **Aashutosh Vaish**     | —              | Team Member |
+| **Shivansh Mishra**     | `303302223199` | Team Member |
+| **Shashwat Khandelwal** | `303302223197` | Team Member |
+
+---
+
+## 👨‍🏫 Project Guide
+
+**Mrs. Poonam Gupta**
+
+Assistant Professor
+Department of Computer Science & Engineering
+**SSIPMT, Raipur**
+
+---
+
+## 📚 Project Details
+
+| Attribute   | Details                                              |
+| ----------- | ---------------------------------------------------- |
+| Project     | Computer Vision-Based Child Safety Monitoring System |
+| Semester    | 7th Semester                                         |
+| Batch       | 2023–27                                              |
+| Session     | July–December 2026                                   |
+| Institution | SSIPMT, Raipur                                       |
+| Department  | Computer Science & Engineering                       |
+
+---
+
+## 🙏 Acknowledgments
+
+We would like to thank the open-source communities and technologies that made this project possible:
+
+* **Ultralytics YOLO** — Object detection
+* **Google MediaPipe** — Pose estimation
+* **PyTorch** — Deep learning and LSTM implementation
+* **OpenCV** — Computer vision and video processing
+* **Flask** — Web application framework
+* **Bootstrap** — Frontend development
+* **Chart.js** — Data visualization
+
+---
+
+## 📖 References
+
+* Ultralytics YOLO documentation
+* MediaPipe Pose documentation
+* PyTorch LSTM documentation
+* Flask documentation
+* OpenCV documentation
+
+---
+
+## 🔒 Privacy & Safety Considerations
+
+Because this system processes video of children, privacy should be treated as a core design requirement.
+
+Recommended practices include:
+
+* Process video locally whenever possible.
+* Avoid unnecessary cloud uploads.
+* Protect stored recordings and captured images.
+* Do not expose monitoring endpoints publicly without authentication.
+* Keep notification credentials outside source control.
+* Delete recordings and alert images according to an appropriate retention policy.
+* Obtain appropriate consent before monitoring or storing children's video.
+
+The system is intended as an **assistive monitoring tool**, not as a replacement for responsible adult supervision.
+
+---
+
+## 📄 License
+
+This project is developed as part of the **7th Semester Project at SSIPMT, Raipur**.
+
+If this repository is intended to use the MIT License, add the corresponding `LICENSE` file to the repository and keep the licensing terms consistent with that file.
+
+---
+
+## ⭐ Project
+
+**Computer Vision-Based Child Safety Monitoring System**
+
+> Detect. Analyze. Alert. Protect.
+
+<div align="center">
+
+**SSIPMT, Raipur | Department of Computer Science & Engineering**
+
+**7th Semester | Batch 2023–27 | Session July–December 2026**
+
+</div>
