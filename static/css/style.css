@@ -1,0 +1,178 @@
+/* static/css/style.css */
+body {
+    background-color: #f5f7fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.video-container {
+    position: relative;
+    background-color: #000;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.video-container img {
+    width: 100%;
+    height: auto;
+}
+
+.video-overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 10;
+}
+
+.status-badge {
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    display: inline-block;
+}
+
+.status-badge.active {
+    background: rgba(40, 167, 69, 0.8);
+}
+
+.status-badge.inactive {
+    background: rgba(220, 53, 69, 0.8);
+}
+
+.card {
+    border: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.card-header {
+    border-radius: 10px 10px 0 0 !important;
+    font-weight: 600;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-item label {
+    font-weight: 600;
+    color: #666;
+}
+
+.status-item .value {
+    font-weight: 600;
+    color: #333;
+}
+
+.status-item .value.safe {
+    color: #28a745;
+}
+
+.status-item .value.danger {
+    color: #dc3545;
+}
+
+.tech-badge {
+    display: inline-block;
+    background: #e9ecef;
+    padding: 5px 12px;
+    border-radius: 20px;
+    margin: 3px;
+    font-size: 13px;
+    color: #495057;
+}
+
+.team-list {
+    list-style: none;
+    padding: 0;
+}
+
+.team-list li {
+    padding: 5px 0;
+}
+
+.stats-card {
+    border-radius: 10px;
+    padding: 10px 0;
+}
+
+.stats-card .card-title {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.stats-card .card-text {
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.alert-item {
+    padding: 8px 12px;
+    border-left: 3px solid #ffc107;
+    margin-bottom: 5px;
+    background: #fff8e1;
+    border-radius: 4px;
+}
+
+.alert-item.high {
+    border-left-color: #dc3545;
+    background: #f8d7da;
+}
+
+.alert-item.medium {
+    border-left-color: #ffc107;
+    background: #fff3cd;
+}
+
+.alert-item.low {
+    border-left-color: #17a2b8;
+    background: #d1ecf1;
+}
+
+.alert-item .timestamp {
+    font-size: 11px;
+    color: #888;
+}
+
+#uploadResult img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+#alertContainer::-webkit-scrollbar {
+    width: 5px;
+}
+
+#alertContainer::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+#alertContainer::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 5px;
+}
+
+.btn-group .btn {
+    margin-right: 5px;
+}
+
+@media (max-width: 768px) {
+    .btn-group .btn {
+        margin-bottom: 5px;
+        width: 100%;
+    }
+}
