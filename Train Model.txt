@@ -1,5 +1,0 @@
-# Generate synthetic data and train
-python train_model.py --generate --samples 2000 --epochs 30
-
-# Or train with your own data
-python train_model.py --data path/to/your/data.npz --epochs 50
