@@ -692,8 +692,8 @@ The project can be extended with the following features:
 
 | Name                    | Roll Number    | Role        |
 | ----------------------- | -------------- | ----------- |
-| **Arpit Ojha**          | `303302223004` | Team Member |
-| **Aashutosh Vaish**     | `303302223049` | Team Member |
+| **Aashutosh Vaish**     | `303302223004` | Team Member |
+| **Arpit Ojha**          | `303302223049` | Team Member |
 | **Shivansh Mishra**     | `303302223199` | Team Member |
 | **Shashwat Khandelwal** | `303302223197` | Team Leader |
 
