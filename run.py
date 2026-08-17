@@ -141,7 +141,23 @@ def run_training():
         print("   python data_preparation.py --process")
         return
     
-    run_command("python -c 'from app import ChildSafetyMonitor; m = ChildSafetyMonitor(); m.train_from_data()'")
+    # Use a Python script file instead of inline command to avoid quoting issues
+    train_script = """
+import sys
+sys.path.append('.')
+from app import ChildSafetyMonitor
+m = ChildSafetyMonitor()
+m.train_from_data()
+"""
+    # Write to a temporary file
+    with open('temp_train.py', 'w') as f:
+        f.write(train_script)
+    
+    run_command("python temp_train.py")
+    
+    # Clean up
+    if os.path.exists('temp_train.py'):
+        os.remove('temp_train.py')
 
 def run_data_prep():
     """Run data preparation"""
