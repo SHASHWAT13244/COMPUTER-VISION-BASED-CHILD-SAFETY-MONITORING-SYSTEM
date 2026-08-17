@@ -28,9 +28,6 @@
 * [Team Members](#-team-members)
 * [Project Guide](#-project-guide)
 * [Future Scope](#-future-scope)
-* [Acknowledgments](#-acknowledgments)
-* [References](#-references)
-* [Privacy & Safety](#-privacy--safety)
 * [License](#-license)
 
 ---
