@@ -33,14 +33,13 @@ class PerformanceMonitor:
         self.history_length = history_length
         self.monitor_interval = monitor_interval
         
-        # Metrics storage
+        # Metrics storage - all values are deques for consistent iteration
         self.metrics = {
             'fps': deque(maxlen=history_length),
             'inference_time': deque(maxlen=history_length),
             'cpu_usage': deque(maxlen=history_length),
             'memory_usage': deque(maxlen=history_length),
             'memory_available': deque(maxlen=history_length),
-            'cpu_cores': psutil.cpu_count(),
             'temperature': deque(maxlen=history_length),
             'gpu_usage': deque(maxlen=history_length),
             'gpu_memory': deque(maxlen=history_length),
@@ -48,6 +47,9 @@ class PerformanceMonitor:
             'network_sent': deque(maxlen=history_length),
             'network_recv': deque(maxlen=history_length)
         }
+        
+        # Store CPU cores separately (not in metrics dict to avoid iteration issues)
+        self.cpu_cores = psutil.cpu_count()
         
         # Custom metrics
         self.custom_metrics = defaultdict(lambda: deque(maxlen=history_length))
@@ -93,7 +95,7 @@ class PerformanceMonitor:
                 self._collect_metrics()
                 
                 # Log metrics periodically
-                if len(self.metrics['cpu_usage']) % 10 == 0:
+                if len(self.metrics['cpu_usage']) % 10 == 0 and len(self.metrics['cpu_usage']) > 0:
                     self._save_metrics()
                 
                 time.sleep(self.monitor_interval)
@@ -186,7 +188,7 @@ class PerformanceMonitor:
         summary = {}
         
         for name, values in self.metrics.items():
-            if values:
+            if values:  # Check if deque is not empty
                 values_list = list(values)
                 summary[name] = {
                     'current': values_list[-1] if values_list else 0,
@@ -194,6 +196,14 @@ class PerformanceMonitor:
                     'max': max(values_list) if values_list else 0,
                     'min': min(values_list) if values_list else 0,
                     'count': len(values_list)
+                }
+            else:
+                summary[name] = {
+                    'current': 0,
+                    'average': 0,
+                    'max': 0,
+                    'min': 0,
+                    'count': 0
                 }
         
         # Add custom metrics
@@ -208,6 +218,16 @@ class PerformanceMonitor:
                     'count': len(values_list)
                 }
         
+        # Add CPU cores info
+        summary['cpu_cores'] = {
+            'value': self.cpu_cores,
+            'current': self.cpu_cores,
+            'average': self.cpu_cores,
+            'max': self.cpu_cores,
+            'min': self.cpu_cores,
+            'count': 1
+        }
+        
         return summary
     
     def get_health_status(self):
@@ -221,7 +241,7 @@ class PerformanceMonitor:
         }
         
         # Check CPU usage
-        if 'cpu_usage' in summary:
+        if 'cpu_usage' in summary and summary['cpu_usage']['count'] > 0:
             cpu_avg = summary['cpu_usage']['average']
             cpu_current = summary['cpu_usage']['current']
             
@@ -231,7 +251,7 @@ class PerformanceMonitor:
                     health['status'] = 'critical'
         
         # Check memory usage
-        if 'memory_usage' in summary:
+        if 'memory_usage' in summary and summary['memory_usage']['count'] > 0:
             mem_avg = summary['memory_usage']['average']
             mem_current = summary['memory_usage']['current']
             
@@ -241,7 +261,7 @@ class PerformanceMonitor:
                     health['status'] = 'critical'
         
         # Check FPS
-        if 'fps' in summary:
+        if 'fps' in summary and summary['fps']['count'] > 0:
             fps_avg = summary['fps']['average']
             fps_current = summary['fps']['current']
             
@@ -251,7 +271,7 @@ class PerformanceMonitor:
                     health['status'] = 'critical'
         
         # Check temperature
-        if 'temperature' in summary:
+        if 'temperature' in summary and summary['temperature']['count'] > 0:
             temp_avg = summary['temperature']['average']
             temp_current = summary['temperature']['current']
             
@@ -263,7 +283,8 @@ class PerformanceMonitor:
         # Check if metrics are being collected
         if not any(self.metrics['cpu_usage']):
             health['warnings'].append("No metrics collected")
-            health['status'] = 'unknown'
+            if len(health['warnings']) > 0:
+                health['status'] = 'warning'
         
         return health
     
