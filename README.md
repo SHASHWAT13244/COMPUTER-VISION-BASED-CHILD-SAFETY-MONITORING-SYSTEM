@@ -549,8 +549,6 @@ Based on the current evaluation documentation:
 | Sitting  |    1.0000 | 1.0000 |   1.0000 |       4 |
 | Climbing |    0.8000 | 1.0000 |   0.8889 |       4 |
 
-> **Evaluation note:** The reported evaluation currently lists 14 test samples, while the project defines five activities including `falling`. Before using these results in a final presentation/report, verify that the evaluation dataset and per-class metrics include all intended classes.
-
 ### Generated Files
 
 The evaluation process generates:
@@ -634,8 +632,8 @@ Actual performance depends on:
 | ----------------------- | -------------- | ----------- |
 | **Shashwat Khandelwal** | `303302223197` | Team Leader |
 | **Shivansh Mishra**     | `303302223199` | Team Member |
-| **Arpit Ojha**          | `303302223004` | Team Member |
-| **Aashutosh Vaish**     | `303302223049` | Team Member |
+| **Arpit Ojha**          | `303302223049` | Team Member |
+| **Aashutosh Vaish**     | `303302223004` | Team Member |
 
 ---
 
@@ -678,52 +676,7 @@ Department of Computer Science & Engineering
 * 🔒 Privacy-preserving local processing
 
 ---
-
-## 🙏 Acknowledgments
-
-We would like to acknowledge the following technologies and projects that support the development of this system:
-
-* **Ultralytics YOLO** — Object detection
-* **Google MediaPipe** — Pose estimation
-* **PyTorch** — Deep learning and LSTM implementation
-* **OpenCV** — Computer vision and video processing
-* **Flask** — Web application framework
-* **Bootstrap** — Frontend development
-* **Chart.js** — Data visualization
-
 ---
-
-## 📖 References
-
-1. Jocher, G., Chaurasia, A., & Qiu, J. (2023). **Ultralytics YOLOv8**.
-   [https://github.com/ultralytics/ultralytics](https://github.com/ultralytics/ultralytics)
-
-2. Lugaresi, C., et al. (2019). **MediaPipe: A Framework for Building Perception Pipelines**. arXiv:1906.08172.
-
-3. Hochreiter, S., & Schmidhuber, J. (1997). **Long Short-Term Memory**. *Neural Computation, 9(8)*, 1735–1780.
-
-4. Tapia, E. M., et al. (2004). **Activity Recognition in the Home**. In *Pervasive Computing*.
-
-5. Lin, T. Y., et al. (2014). **Microsoft COCO: Common Objects in Context**. In *ECCV*.
-
----
-
-## 🔒 Privacy & Safety Considerations
-
-Because this system processes video involving children, privacy and security should be treated as important design requirements.
-
-* 🔐 Process video locally whenever possible.
-* ☁️ Avoid unnecessary cloud uploads.
-* 🔒 Protect stored recordings and captured images.
-* 🌐 Do not expose monitoring endpoints publicly without authentication.
-* 🔑 Keep notification credentials outside source control.
-* 🗑️ Delete recordings and alert images according to an appropriate retention policy.
-* 👨‍👩‍👧 Obtain appropriate consent before monitoring or storing children's video.
-
-> **Important:** The system is intended as an **assistive monitoring tool**, not as a replacement for responsible adult supervision.
-
----
-
 ## 📄 License
 
 This project is developed as part of the **7th Semester Project at SSIPMT, Raipur**.
