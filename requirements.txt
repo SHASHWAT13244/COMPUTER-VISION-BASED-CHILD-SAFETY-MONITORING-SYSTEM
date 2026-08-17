@@ -18,10 +18,3 @@ eventlet==0.33.3
 python-socketio==5.9.0
 jinja2==3.1.2
 werkzeug==2.3.7
-base64
-io
-time
-datetime
-json
-os
-threading
