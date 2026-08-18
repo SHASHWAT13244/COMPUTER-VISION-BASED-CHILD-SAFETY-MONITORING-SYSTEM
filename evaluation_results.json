@@ -1,0 +1,99 @@
+{
+  "accuracy": 0.8823529411764706,
+  "per_class": {
+    "walking": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 2
+    },
+    "running": {
+      "precision": 1.0,
+      "recall": 0.75,
+      "f1": 0.8571428571428571,
+      "support": 4
+    },
+    "sitting": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 4
+    },
+    "falling": {
+      "precision": 1.0,
+      "recall": 0.5,
+      "f1": 0.6666666666666666,
+      "support": 2
+    },
+    "climbing": {
+      "precision": 0.7142857142857143,
+      "recall": 1.0,
+      "f1": 0.8333333333333333,
+      "support": 5
+    }
+  },
+  "macro": {
+    "precision": 0.9428571428571428,
+    "recall": 0.85,
+    "f1": 0.8714285714285713
+  },
+  "weighted": {
+    "precision": 0.9159663865546218,
+    "recall": 0.8823529411764706,
+    "f1": 0.8781512605042017
+  },
+  "confusion_matrix": [
+    [
+      2,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      3,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      4,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      1,
+      1
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      5
+    ]
+  ],
+  "class_names": [
+    "walking",
+    "running",
+    "sitting",
+    "falling",
+    "climbing"
+  ],
+  "all_classes": [
+    "walking",
+    "running",
+    "sitting",
+    "falling",
+    "climbing"
+  ],
+  "total_samples": 17,
+  "model_path": "saved_models/activity_model.pth",
+  "data_path": "data/training_data.npz"
+}
