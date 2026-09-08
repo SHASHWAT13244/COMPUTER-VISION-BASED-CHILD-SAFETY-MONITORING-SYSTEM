@@ -271,6 +271,7 @@ class ChildSafetyMonitor:
             cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
         
         # Process each tracked person
+        keypoints = None
         for track_id, track in tracks.items():
             bbox = track['bbox']
             x1, y1, x2, y2 = bbox
@@ -300,7 +301,7 @@ class ChildSafetyMonitor:
                     activity, confidence = self.activity_recognizer.predict_activity(
                         self.keypoint_buffer
                     )
-                    self.current_activity = activity
+                    self.current_activity = activity or 'Unknown'
                     self.current_confidence = confidence
                     result['activity'] = activity or 'Unknown'
                     result['confidence'] = confidence
@@ -344,7 +345,7 @@ class ChildSafetyMonitor:
                 self.alerts.append(alert_info)
                 result['alert_info'] = alert_info
         
-        # Draw status
+        # Draw status with confidence
         annotated_frame = self.visualizer.draw_status(
             annotated_frame,
             result['activity'],
@@ -526,7 +527,6 @@ def main():
     # Load config
     config = Config()
     if args.config:
-        # Load custom config
         import json
         with open(args.config, 'r') as f:
             custom_config = json.load(f)
