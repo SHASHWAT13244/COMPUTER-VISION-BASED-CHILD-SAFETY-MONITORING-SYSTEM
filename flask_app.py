@@ -401,7 +401,8 @@ def get_status():
             'fps': current_status.get('fps', 0),
             'frame_count': current_status.get('frame_count', 0),
             'health': health,
-            'uptime': (datetime.now() - start_time).total_seconds()
+            'uptime': (datetime.now() - start_time).total_seconds(),
+            'alert_count': len(current_status.get('alerts', []))
         })
     except Exception as e:
         logger.error(f"Error in get_status: {e}")
@@ -416,6 +417,7 @@ def get_status():
             'frame_count': current_status.get('frame_count', 0),
             'health': {'status': 'unknown', 'warnings': ['Error fetching health status']},
             'uptime': 0,
+            'alert_count': len(current_status.get('alerts', [])),
             'error': str(e)
         }), 200
 
@@ -517,6 +519,8 @@ def reset_system():
 @app.route('/api/upload', methods=['POST'])
 def upload_image():
     """Upload and process an image with proper activity recognition"""
+    global current_status, alerts_list, keypoint_buffer
+    
     if 'image' not in request.files:
         return jsonify({'error': 'No image uploaded'}), 400
     
@@ -535,6 +539,60 @@ def upload_image():
         
         # Process the image with enhanced single-frame analysis
         result = process_single_image_enhanced(frame)
+        
+        # ✅ CRITICAL FIX: Update global status with image analysis results
+        with processing_lock:
+            # Update activity
+            if result.get('activity') and result['activity'] != 'None':
+                current_status['activity'] = result['activity']
+                current_status['confidence'] = result.get('confidence', 0.0)
+                current_status['safe'] = result.get('safe', True)
+                
+                # ✅ Generate alert for unsafe activities
+                if not result.get('safe', True) and result.get('alert'):
+                    alert_info = {
+                        'id': len(alerts_list) + 1,
+                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'message': result.get('message', f'Unsafe activity detected: {result["activity"]}'),
+                        'severity': result.get('severity', 'high'),
+                        'activity': result.get('activity', 'unknown'),
+                        'confidence': result.get('confidence', 0.0),
+                        'source': 'image_upload',
+                        'image_analyzed': True
+                    }
+                    
+                    alerts_list.append(alert_info)
+                    current_status['alerts'] = alerts_list
+                    
+                    # ✅ Send alert via socket to all clients
+                    socketio.emit('alert', alert_info)
+                    
+                    # ✅ Send via advanced alert system
+                    try:
+                        advanced_alert.send_alert(alert_info)
+                    except Exception as e:
+                        logger.error(f"Error sending advanced alert: {e}")
+                    
+                    logger.info(f"🚨 ALERT generated from image upload: {alert_info['message']}")
+            
+            # ✅ Update keypoint buffer for consistency
+            keypoints = pose_estimator.extract_keypoints(frame)
+            if keypoints is not None:
+                keypoints_flat = keypoints[:, :3].flatten()
+                keypoint_buffer.append(keypoints_flat)
+                if len(keypoint_buffer) > Config.SEQUENCE_LENGTH * 2:
+                    keypoint_buffer = keypoint_buffer[-Config.SEQUENCE_LENGTH:]
+        
+        # ✅ Broadcast status update to all connected clients
+        socketio.emit('status_update', {
+            'activity': current_status.get('activity', 'None'),
+            'confidence': current_status.get('confidence', 0.0),
+            'safe': current_status.get('safe', True),
+            'alert_count': len(alerts_list),
+            'fps': current_status.get('fps', 0),
+            'source': 'image_upload',
+            'timestamp': datetime.now().isoformat()
+        })
         
         # Save uploaded image
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -566,7 +624,9 @@ def upload_image():
         return jsonify({
             'result': result,
             'image_url': f'/static/uploads/{filename}',
-            'probabilities': probabilities
+            'probabilities': probabilities,
+            'status_updated': True,
+            'alert_generated': not result.get('safe', True)
         })
         
     except Exception as e:
@@ -604,16 +664,13 @@ def process_single_image_enhanced(frame):
             result['processed_image'] = encode_image_to_base64(frame)
             return result
         
-        logger.info(f"✅ Person detected with confidence: {detections[0]['confidence']:.2f}")
-        
-        # Extract pose
+        # ✅ Extract pose
         keypoints = pose_estimator.extract_keypoints(frame)
         result['pose_detected'] = keypoints is not None
         
         if keypoints is None:
             logger.warning("⚠️ No pose detected in image")
             result['message'] = 'Pose not detected. Ensure person is clearly visible.'
-            # Still return with detection info
             annotated_frame = frame.copy()
             for det in detections:
                 x1, y1, x2, y2 = det['bbox']
@@ -623,10 +680,7 @@ def process_single_image_enhanced(frame):
             result['processed_image'] = encode_image_to_base64(annotated_frame)
             return result
         
-        logger.info("✅ Pose extracted successfully")
-        
-        # Create synthetic sequence from single frame
-        # Try different activity-specific sequences to find the best match
+        # ✅ Create synthetic sequence from single frame
         activities = ['walking', 'running', 'sitting', 'falling', 'climbing']
         best_activity = None
         best_confidence = 0.0
@@ -634,20 +688,16 @@ def process_single_image_enhanced(frame):
         
         for activity_type in activities:
             try:
-                # Generate activity-specific sequence
                 synthetic_seq = create_activity_specific_sequence(
                     keypoints, activity_type, Config.SEQUENCE_LENGTH
                 )
                 
                 if synthetic_seq is not None:
-                    # Predict using the sequence
                     pred_activity, confidence = activity_recognizer.predict_activity(synthetic_seq)
                     
                     if pred_activity is not None:
-                        # Store all predictions
                         all_predictions[pred_activity] = confidence
                         
-                        # Track best prediction
                         if confidence > best_confidence:
                             best_confidence = confidence
                             best_activity = pred_activity
@@ -655,9 +705,8 @@ def process_single_image_enhanced(frame):
                 logger.error(f"Error with {activity_type} sequence: {e}")
                 continue
         
-        # If no activity-specific sequence worked, try generic
+        # ✅ If no activity-specific sequence worked, try generic
         if best_activity is None:
-            logger.info("Attempting generic synthetic sequence...")
             try:
                 synthetic_seq = create_synthetic_sequence(keypoints, Config.SEQUENCE_LENGTH)
                 if synthetic_seq is not None:
@@ -668,13 +717,13 @@ def process_single_image_enhanced(frame):
             except Exception as e:
                 logger.error(f"Error with generic sequence: {e}")
         
-        # Set results
+        # ✅ Set results with proper confidence
         if best_activity is not None and best_confidence > 0.3:
             result['activity'] = best_activity
             result['confidence'] = best_confidence
             logger.info(f"🎯 Activity predicted: {best_activity} (confidence: {best_confidence:.2%})")
             
-            # Check safety
+            # ✅ Check safety - CRITICAL for alert generation
             detection = detections[0]
             safety_result = safety_engine.check_safety(
                 activity=best_activity,
@@ -688,11 +737,14 @@ def process_single_image_enhanced(frame):
             result['message'] = safety_result.get('message', 'All safe')
             result['severity'] = safety_result.get('severity', 'low')
             result['alert'] = safety_result.get('alert')
+            
+            # ✅ LOG for debugging
+            logger.info(f"🔍 Safety check result: safe={result['safe']}, alert={result['alert']}")
         else:
-            result['message'] = 'Activity not recognized with sufficient confidence'
+            result['message'] = f'Activity not recognized with sufficient confidence (best: {best_confidence:.2%})'
             logger.warning(f"⚠️ No confident prediction: best confidence {best_confidence:.2%}")
         
-        # Create annotated visualization
+        # ✅ Create annotated visualization
         annotated_frame = frame.copy()
         
         # Draw detections with confidence
@@ -727,7 +779,6 @@ def process_single_image_enhanced(frame):
             extra_info
         )
         
-        # Convert to base64
         result['processed_image'] = encode_image_to_base64(annotated_frame)
         
     except Exception as e:
@@ -857,7 +908,7 @@ def export_alerts():
             alerts = current_status.get('alerts', [])
             
             if alerts:
-                fieldnames = ['id', 'timestamp', 'severity', 'activity', 'message', 'location']
+                fieldnames = ['id', 'timestamp', 'severity', 'activity', 'message', 'location', 'source']
                 writer = csv.DictWriter(output, fieldnames=fieldnames)
                 writer.writeheader()
                 for alert in alerts:
@@ -961,7 +1012,8 @@ def process_video():
                     'message': result.get('message', 'Unsafe behavior detected'),
                     'severity': result.get('severity', 'medium'),
                     'activity': result.get('activity', 'unknown'),
-                    'confidence': result.get('confidence', 0.0)
+                    'confidence': result.get('confidence', 0.0),
+                    'source': 'live_feed'
                 }
                 
                 with processing_lock:
