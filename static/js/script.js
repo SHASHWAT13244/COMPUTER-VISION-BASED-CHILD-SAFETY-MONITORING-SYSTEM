@@ -93,6 +93,9 @@ uploadForm.addEventListener('submit', (e) => {
     const formData = new FormData();
     formData.append('image', imageInput.files[0]);
     
+    // Show loading state
+    uploadResult.innerHTML = '<div class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div><p>Processing image...</p></div>';
+    
     fetch('/api/upload', {
         method: 'POST',
         body: formData
@@ -103,9 +106,13 @@ uploadForm.addEventListener('submit', (e) => {
             displayUploadResult(data);
         } else {
             showNotification('Error processing image', 'danger');
+            uploadResult.innerHTML = '<div class="alert alert-danger">Error processing image. Please try again.</div>';
         }
     })
-    .catch(error => console.error('Error uploading image:', error));
+    .catch(error => {
+        console.error('Error uploading image:', error);
+        uploadResult.innerHTML = '<div class="alert alert-danger">Error uploading image. Please try again.</div>';
+    });
 });
 
 // Status update functions
@@ -114,7 +121,17 @@ function updateStatus(data) {
         currentActivity.textContent = data.activity || 'None';
     }
     if (data.confidence !== undefined) {
-        currentConfidence.textContent = Math.round(data.confidence * 100) + '%';
+        // Display confidence as percentage
+        const confidencePercent = Math.round(data.confidence * 100);
+        currentConfidence.textContent = confidencePercent + '%';
+        // Color based on confidence
+        if (confidencePercent > 70) {
+            currentConfidence.style.color = '#28a745';
+        } else if (confidencePercent > 40) {
+            currentConfidence.style.color = '#ffc107';
+        } else {
+            currentConfidence.style.color = '#dc3545';
+        }
     }
     if (data.safe !== undefined) {
         safetyStatus.textContent = data.safe ? '✅ Safe' : '⚠️ Unsafe';
@@ -142,12 +159,16 @@ function updateStatusUI(active) {
 function addAlert(data) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert-item ' + (data.severity || 'medium');
+    
+    // Show confidence in alert if available
+    const confidenceText = data.confidence ? ` (${Math.round(data.confidence * 100)}%)` : '';
+    
     alertDiv.innerHTML = `
         <div class="d-flex justify-content-between">
             <span><strong>${data.message}</strong></span>
             <span class="badge bg-${data.severity === 'high' ? 'danger' : data.severity === 'medium' ? 'warning' : 'info'}">${data.severity || 'unknown'}</span>
         </div>
-        <div class="timestamp">${data.timestamp} - Activity: ${data.activity || 'Unknown'}</div>
+        <div class="timestamp">${data.timestamp} - Activity: ${data.activity || 'Unknown'}${confidenceText}</div>
     `;
     
     alertContainer.prepend(alertDiv);
@@ -166,14 +187,16 @@ function updateAlertBadge() {
 
 function displayUploadResult(data) {
     const result = data.result;
+    const confidencePercent = Math.round(result.confidence * 100);
+    
     uploadResult.innerHTML = `
         <div class="alert alert-${result.safe ? 'success' : 'danger'}">
             <h6>Analysis Result:</h6>
             <p><strong>Activity:</strong> ${result.activity || 'None'}</p>
-            <p><strong>Confidence:</strong> ${Math.round(result.confidence * 100)}%</p>
+            <p><strong>Confidence:</strong> <span style="color: ${confidencePercent > 70 ? '#28a745' : confidencePercent > 40 ? '#ffc107' : '#dc3545'}; font-weight: bold;">${confidencePercent}%</span></p>
             <p><strong>Safety:</strong> ${result.safe ? '✅ Safe' : '⚠️ Unsafe'}</p>
             ${result.message ? `<p><strong>Message:</strong> ${result.message}</p>` : ''}
-            ${result.processed_image ? `<img src="data:image/jpeg;base64,${result.processed_image}" alt="Processed Image">` : ''}
+            ${result.processed_image ? `<img src="data:image/jpeg;base64,${result.processed_image}" alt="Processed Image" style="max-width: 100%; border-radius: 8px; margin-top: 10px;">` : ''}
         </div>
     `;
 }
