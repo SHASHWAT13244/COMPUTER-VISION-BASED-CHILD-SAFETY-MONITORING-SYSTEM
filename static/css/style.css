@@ -285,3 +285,210 @@ body {
 .alert-dismissible.fade {
     transition: opacity 0.3s ease;
 }
+
+
+
+/* static/css/style.css - Additional styles for image analysis integration */
+
+/* Status source indicator */
+#sourceIndicator {
+    display: none;
+    padding: 4px 0;
+}
+
+#analysisTimeIndicator {
+    display: none;
+    padding: 4px 0;
+}
+
+#analysisTimeIndicator .value {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+/* Source badges */
+.source-badge-live {
+    background: #17a2b8;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    margin-left: 5px;
+}
+
+.source-badge-image {
+    background: #9C27B0;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    margin-left: 5px;
+}
+
+/* Alert source badges in timeline */
+.bg-purple {
+    background-color: #9C27B0;
+    color: white;
+}
+
+/* Image analysis flash effect */
+@keyframes flash-warning {
+    0% { background-color: #fff3cd; }
+    50% { background-color: #ffc107; }
+    100% { background-color: #fff3cd; }
+}
+
+.flash-warning {
+    animation: flash-warning 1.5s ease 3;
+}
+
+/* Highlighted alert from image analysis */
+.alert-item.image-analysis {
+    border-left-color: #9C27B0;
+    background: #f3e5f5;
+}
+
+/* Confidence colors */
+.confidence-high {
+    color: #28a745 !important;
+    font-weight: bold;
+}
+
+.confidence-medium {
+    color: #ffc107 !important;
+    font-weight: bold;
+}
+
+.confidence-low {
+    color: #dc3545 !important;
+    font-weight: bold;
+}
+
+/* Probability bars */
+.probability-bar {
+    margin: 4px 0;
+}
+
+.probability-bar .label {
+    width: 80px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.probability-bar .progress {
+    height: 22px;
+    border-radius: 4px;
+}
+
+.probability-bar .progress-bar {
+    font-size: 11px;
+    line-height: 22px;
+    font-weight: 600;
+    transition: width 0.6s ease;
+}
+
+/* Upload result container */
+.upload-result-container {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.upload-result-container img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin-top: 10px;
+}
+
+/* Status badge */
+.status-badge {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.status-badge.active {
+    background: rgba(40, 167, 69, 0.2);
+    color: #28a745;
+    border: 1px solid #28a745;
+}
+
+.status-badge.inactive {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+    border: 1px solid #dc3545;
+}
+
+.status-badge .fa-circle {
+    font-size: 10px;
+    margin-right: 6px;
+}
+
+.status-badge.unsafe {
+    background: rgba(220, 53, 69, 0.2);
+    color: #dc3545;
+    border: 1px solid #dc3545;
+    animation: pulse-danger 1s ease infinite;
+}
+
+@keyframes pulse-danger {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Alert items */
+.alert-item {
+    padding: 8px 12px;
+    border-left: 3px solid #ffc107;
+    margin-bottom: 5px;
+    background: #fff8e1;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.alert-item.high {
+    border-left-color: #dc3545;
+    background: #f8d7da;
+}
+
+.alert-item.medium {
+    border-left-color: #ffc107;
+    background: #fff3cd;
+}
+
+.alert-item.low {
+    border-left-color: #17a2b8;
+    background: #d1ecf1;
+}
+
+.alert-item .timestamp {
+    font-size: 11px;
+    color: #888;
+    margin-top: 2px;
+}
+
+/* Upload button states */
+#uploadBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Loading spinner animation */
+.spinner-border {
+    width: 2rem;
+    height: 2rem;
+}
+
+/* Notification animations */
+.alert-dismissible.fade {
+    transition: opacity 0.3s ease;
+}
+
+/* Dashboard card text colors */
+.text-warning {
+    color: #ffc107 !important;
+}
+
+.text-purple {
+    color: #9C27B0 !important;
+}
