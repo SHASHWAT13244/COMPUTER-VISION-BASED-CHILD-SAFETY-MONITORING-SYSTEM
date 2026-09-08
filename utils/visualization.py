@@ -55,12 +55,12 @@ class Visualizer:
     def draw_status(self, frame, activity, confidence, is_safe=True, alerts=None,
                    extra_info=None):
         """
-        Draw status information on frame
+        Draw status information on frame with confidence score
         
         Args:
             frame: Input frame
             activity: Current activity
-            confidence: Confidence score
+            confidence: Confidence score (0-1)
             is_safe: Safety status
             alerts: Recent alerts
             extra_info: Additional information
@@ -82,12 +82,12 @@ class Visualizer:
             status_icon = self.status_icons['danger']
         
         # Draw top status bar
-        bar_height = 80 if self.show_info else 50
+        bar_height = 100 if self.show_info else 60
         overlay = annotated_frame.copy()
         cv2.rectangle(overlay, (0, 0), (w, bar_height), self.colors['background'], -1)
         cv2.addWeighted(overlay, 0.6, annotated_frame, 0.4, 0, annotated_frame)
         
-        # Status line
+        # Status line - First row
         y_offset = 25
         
         # Status and activity
@@ -97,24 +97,31 @@ class Visualizer:
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
             
             if activity and activity != 'None':
+                # Display activity with confidence score
+                confidence_pct = confidence * 100 if confidence > 0 else 0
                 activity_text = f"Activity: {activity}"
-                if confidence > 0:
-                    activity_text += f" ({confidence:.2%})"
-                cv2.putText(annotated_frame, activity_text, (200, y_offset),
+                cv2.putText(annotated_frame, activity_text, (180, y_offset),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, self.colors['text'], 1)
+                
+                # Display confidence score prominently
+                confidence_text = f"Confidence: {confidence_pct:.1f}%"
+                confidence_color = self.colors['safe'] if confidence > 0.7 else self.colors['warning']
+                cv2.putText(annotated_frame, confidence_text, (400, y_offset),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, confidence_color, 2)
         else:
             cv2.putText(annotated_frame, f"{status_icon} {status_text}", (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, status_color, 2)
         
-        # FPS
+        # FPS - Second row
         if self.show_fps:
+            y_offset = 55
             fps_text = f"FPS: {self.fps:.1f}"
             cv2.putText(annotated_frame, fps_text, (w - 120, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, self.colors['text'], 1)
         
         # Extra info (second line)
         if self.show_info and extra_info:
-            y_offset += 30
+            y_offset = 55
             info_text = " | ".join([f"{k}: {v}" for k, v in extra_info.items()])
             cv2.putText(annotated_frame, info_text, (10, y_offset),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.4, self.colors['info'], 1)
@@ -123,7 +130,7 @@ class Visualizer:
         if alerts and self.show_info:
             y_offset = bar_height - 5
             for i, alert in enumerate(alerts[-3:]):  # Show last 3 alerts
-                alert_text = f"⚠ {alert['message']}"
+                alert_text = f"⚠ {alert.get('message', 'Alert')}"
                 alert_color = self.colors['danger'] if alert.get('severity') == 'high' else self.colors['warning']
                 cv2.putText(annotated_frame, alert_text, (10, y_offset - i * 22),
                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, alert_color, 1)
@@ -167,7 +174,7 @@ class Visualizer:
         # Draw bounding box
         cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), color, 2)
         
-        # Create label
+        # Create label with confidence if provided
         if confidence is not None:
             label = f"{label} {confidence:.2f}"
         
@@ -232,10 +239,6 @@ class Visualizer:
             if len(kp) > 3 and kp[3] > 0.5:
                 x, y = int(kp[0] * w), int(kp[1] * h)
                 cv2.circle(annotated_frame, (x, y), 3, color, -1)
-                
-                # Draw index for debugging
-                # cv2.putText(annotated_frame, str(i), (x+5, y-5),
-                #            cv2.FONT_HERSHEY_SIMPLEX, 0.3, (255, 255, 255), 1)
         
         return annotated_frame
     
@@ -296,10 +299,8 @@ class Visualizer:
             resized_frames.append(f)
         
         if layout == 'horizontal':
-            # Stack horizontally
             comparison = np.hstack(resized_frames)
         else:
-            # Stack vertically
             comparison = np.vstack(resized_frames)
         
         # Add labels
