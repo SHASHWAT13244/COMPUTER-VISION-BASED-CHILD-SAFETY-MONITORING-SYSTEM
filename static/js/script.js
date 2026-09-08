@@ -3,6 +3,8 @@ const socket = io();
 
 let isMonitoring = false;
 let confidenceColor = 'low';
+let lastImageAnalysis = null;
+let statusUpdateInterval = null;
 
 // DOM Elements
 const startBtn = document.getElementById('startBtn');
@@ -37,13 +39,97 @@ socket.on('disconnect', () => {
 });
 
 socket.on('status_update', (data) => {
+    console.log('📊 Status update received:', data);
     updateStatus(data);
 });
 
 socket.on('alert', (data) => {
+    console.log('🚨 Alert received:', data);
     addAlert(data);
     updateAlertBadge();
 });
+
+// ==================== STATUS UPDATE FUNCTIONS ====================
+
+function updateStatus(data) {
+    console.log('📊 Updating status with:', data);
+    
+    // Update activity - CRITICAL FIX
+    if (data.activity !== undefined) {
+        const activityDisplay = data.activity || 'None';
+        currentActivity.textContent = activityDisplay;
+        
+        // Update source indicator
+        if (data.source === 'image_upload') {
+            const sourceIndicator = document.getElementById('sourceIndicator');
+            if (sourceIndicator) {
+                sourceIndicator.style.display = 'flex';
+                document.getElementById('dataSource').textContent = '📷 Image Analysis';
+                document.getElementById('dataSource').className = 'value text-warning';
+            }
+            
+            // Show analysis time
+            if (data.timestamp) {
+                const timeIndicator = document.getElementById('analysisTimeIndicator');
+                if (timeIndicator) {
+                    timeIndicator.style.display = 'flex';
+                    const time = new Date(data.timestamp);
+                    document.getElementById('analysisTime').textContent = time.toLocaleTimeString();
+                }
+            }
+        } else {
+            const sourceIndicator = document.getElementById('sourceIndicator');
+            if (sourceIndicator) {
+                sourceIndicator.style.display = 'flex';
+                document.getElementById('dataSource').textContent = '🎥 Live Feed';
+                document.getElementById('dataSource').className = 'value text-info';
+            }
+        }
+    }
+    
+    // Update confidence
+    if (data.confidence !== undefined) {
+        const confidencePercent = Math.round(data.confidence * 100);
+        currentConfidence.textContent = confidencePercent + '%';
+        
+        // Update color based on confidence
+        currentConfidence.className = 'value';
+        if (confidencePercent > 70) {
+            currentConfidence.classList.add('confidence-high');
+        } else if (confidencePercent > 40) {
+            currentConfidence.classList.add('confidence-medium');
+        } else {
+            currentConfidence.classList.add('confidence-low');
+        }
+    }
+    
+    // Update safety status
+    if (data.safe !== undefined) {
+        safetyStatus.textContent = data.safe ? '✅ Safe' : '⚠️ Unsafe';
+        safetyStatus.className = 'value ' + (data.safe ? 'safe' : 'danger');
+        
+        // Flash the status card for unsafe detection
+        if (!data.safe) {
+            flashStatusCard('danger');
+            showNotification('⚠️ Unsafe activity detected!', 'danger');
+        }
+    }
+    
+    // Update alert count
+    if (data.alert_count !== undefined) {
+        alertCount.textContent = data.alert_count;
+        if (alertCountBadge) alertCountBadge.textContent = data.alert_count;
+        
+        // Update dashboard alert count if visible
+        const dashAlerts = document.getElementById('dashAlerts');
+        if (dashAlerts) dashAlerts.textContent = data.alert_count;
+    }
+    
+    // Update FPS
+    if (data.fps !== undefined) {
+        fpsDisplay.textContent = data.fps.toFixed(1);
+    }
+}
 
 // ==================== BUTTON EVENT HANDLERS ====================
 
@@ -176,6 +262,11 @@ uploadForm.addEventListener('submit', (e) => {
         if (data.result) {
             displayUploadResult(data);
             showNotification('Analysis complete!', 'success');
+            
+            // Status is already updated by the server
+            // Refresh status to ensure UI is in sync
+            refreshStatus();
+            
         } else {
             uploadResult.innerHTML = '<div class="alert alert-warning">No results returned. Please try again.</div>';
         }
@@ -319,42 +410,7 @@ function displayUploadResult(data) {
     uploadResult.innerHTML = html;
 }
 
-// ==================== STATUS UPDATE FUNCTIONS ====================
-
-function updateStatus(data) {
-    if (data.activity !== undefined) {
-        currentActivity.textContent = data.activity || 'None';
-    }
-    
-    if (data.confidence !== undefined) {
-        const confidencePercent = Math.round(data.confidence * 100);
-        currentConfidence.textContent = confidencePercent + '%';
-        
-        // Update color based on confidence
-        currentConfidence.className = 'value';
-        if (confidencePercent > 70) {
-            currentConfidence.classList.add('confidence-high');
-        } else if (confidencePercent > 40) {
-            currentConfidence.classList.add('confidence-medium');
-        } else {
-            currentConfidence.classList.add('confidence-low');
-        }
-    }
-    
-    if (data.safe !== undefined) {
-        safetyStatus.textContent = data.safe ? '✅ Safe' : '⚠️ Unsafe';
-        safetyStatus.className = 'value ' + (data.safe ? 'safe' : 'danger');
-    }
-    
-    if (data.alert_count !== undefined) {
-        alertCount.textContent = data.alert_count;
-        if (alertCountBadge) alertCountBadge.textContent = data.alert_count;
-    }
-    
-    if (data.fps !== undefined) {
-        fpsDisplay.textContent = data.fps.toFixed(1);
-    }
-}
+// ==================== HELPER FUNCTIONS ====================
 
 function updateStatusUI(active) {
     if (active) {
@@ -378,18 +434,52 @@ function updateStatusUI(active) {
     }
 }
 
+function flashStatusCard(type) {
+    const card = document.querySelector('.card-header.bg-info');
+    if (card) {
+        const originalBg = card.className;
+        card.className = `card-header bg-${type} text-white`;
+        setTimeout(() => {
+            card.className = originalBg;
+        }, 3000);
+    }
+    
+    // Also flash the status badge
+    const statusBadge = document.getElementById('statusBadge');
+    if (statusBadge) {
+        const isActive = statusBadge.classList.contains('active');
+        const originalHtml = statusBadge.innerHTML;
+        const originalClass = statusBadge.className;
+        
+        statusBadge.className = `status-badge ${type === 'danger' ? 'inactive' : 'active'}`;
+        statusBadge.innerHTML = `<i class="fas fa-circle"></i> ${type === 'danger' ? '⚠️ UNSAFE' : 'Safe'}`;
+        
+        setTimeout(() => {
+            statusBadge.className = originalClass;
+            statusBadge.innerHTML = originalHtml;
+        }, 3000);
+    }
+}
+
 function addAlert(data) {
     const alertDiv = document.createElement('div');
     alertDiv.className = 'alert-item ' + (data.severity || 'medium');
     
     const confidenceText = data.confidence ? ` (${Math.round(data.confidence * 100)}%)` : '';
+    const sourceText = data.source === 'image_upload' ? '📷 Image' : '🎥 Live';
     
     alertDiv.innerHTML = `
         <div class="d-flex justify-content-between align-items-center">
             <span><strong>${data.message}</strong></span>
-            <span class="badge bg-${data.severity === 'high' ? 'danger' : data.severity === 'medium' ? 'warning' : 'info'}">${data.severity || 'unknown'}</span>
+            <span class="badge bg-${data.severity === 'high' ? 'danger' : data.severity === 'medium' ? 'warning' : 'info'}">
+                ${data.severity || 'unknown'}
+            </span>
         </div>
-        <div class="timestamp">${data.timestamp || new Date().toLocaleString()} - ${data.activity || 'Unknown'}${confidenceText}</div>
+        <div class="timestamp">
+            ${data.timestamp || new Date().toLocaleString()} - 
+            ${data.activity || 'Unknown'}${confidenceText}
+            <span class="badge bg-secondary ms-1">${sourceText}</span>
+        </div>
     `;
     
     alertContainer.prepend(alertDiv);
@@ -416,8 +506,6 @@ function updateAlertBadge() {
         alertCountBadge.textContent = count;
     }
 }
-
-// ==================== NOTIFICATION FUNCTION ====================
 
 function showNotification(message, type = 'info') {
     const alertDiv = document.createElement('div');
@@ -452,38 +540,51 @@ function showNotification(message, type = 'info') {
     }, 5000);
 }
 
+function refreshStatus() {
+    fetch('/api/status')
+        .then(response => response.json())
+        .then(data => {
+            console.log('📊 Status refreshed:', data);
+            updateStatus(data);
+        })
+        .catch(error => console.error('Error refreshing status:', error));
+}
+
 // ==================== PERIODIC STATUS UPDATE ====================
 
 function fetchInitialStatus() {
     fetch('/api/status')
         .then(response => response.json())
         .then(data => {
+            console.log('📊 Initial status fetched:', data);
             updateStatus(data);
-            if (data.monitoring_active) {
-                isMonitoring = true;
-                updateStatusUI(true);
+            
+            // Update monitoring state
+            if (data.monitoring_active !== undefined) {
+                isMonitoring = data.monitoring_active;
+                updateStatusUI(isMonitoring);
             }
-            if (data.alerts) {
+            
+            // Load existing alerts
+            if (data.alerts && data.alerts.length > 0) {
                 data.alerts.forEach(alert => addAlert(alert));
                 updateAlertBadge();
+            }
+            
+            // Update alert count in status
+            if (data.alert_count !== undefined) {
+                alertCount.textContent = data.alert_count;
             }
         })
         .catch(error => console.error('Error fetching status:', error));
 }
 
-// Refresh status every 2 seconds
-setInterval(() => {
-    fetch('/api/status')
-        .then(response => response.json())
-        .then(data => {
-            updateStatus(data);
-        })
-        .catch(error => console.error('Error fetching status:', error));
-}, 2000);
-
 // ==================== INITIALIZATION ====================
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Initializing Child Safety Monitoring System');
+    
+    // Fetch initial status
     fetchInitialStatus();
     updateStatusUI(false);
     
@@ -496,6 +597,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+    
+    // Refresh status every 2 seconds
+    setInterval(refreshStatus, 2000);
+    
+    console.log('✅ Child Safety Monitoring System initialized');
 });
-
-console.log('✅ Child Safety Monitoring System initialized');
