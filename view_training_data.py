@@ -13,7 +13,6 @@ from config import Config
 
 
 def view_data(data_path='data/training_data.npz'):
-    """View training data details"""
     if not os.path.exists(data_path):
         print(f"❌ File not found: {data_path}")
         return
