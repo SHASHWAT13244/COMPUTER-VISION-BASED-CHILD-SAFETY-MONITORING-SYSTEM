@@ -1,387 +1,470 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Child Safety Monitoring System</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .probability-bar {
-            margin: 4px 0;
-        }
-        .probability-bar .label {
-            width: 80px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-        .probability-bar .progress {
-            height: 22px;
-            border-radius: 4px;
-        }
-        .probability-bar .progress-bar {
-            font-size: 11px;
-            line-height: 22px;
-            font-weight: 600;
-            transition: width 0.6s ease;
-        }
-        .upload-result-container {
-            max-height: 500px;
-            overflow-y: auto;
-        }
-        .upload-result-container img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 10px;
-        }
-        .status-badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 600;
-        }
-        .status-badge.active {
-            background: rgba(40, 167, 69, 0.2);
-            color: #28a745;
-            border: 1px solid #28a745;
-        }
-        .status-badge.inactive {
-            background: rgba(220, 53, 69, 0.2);
-            color: #dc3545;
-            border: 1px solid #dc3545;
-        }
-        .status-badge .fa-circle {
-            font-size: 10px;
-            margin-right: 6px;
-        }
-        .video-container {
-            position: relative;
-            background: #000;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .video-container img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        .video-overlay {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            z-index: 10;
-        }
-        .alert-item {
-            padding: 8px 12px;
-            border-left: 3px solid #ffc107;
-            margin-bottom: 5px;
-            background: #fff8e1;
-            border-radius: 4px;
-            font-size: 13px;
-        }
-        .alert-item.high {
-            border-left-color: #dc3545;
-            background: #f8d7da;
-        }
-        .alert-item.medium {
-            border-left-color: #ffc107;
-            background: #fff3cd;
-        }
-        .alert-item.low {
-            border-left-color: #17a2b8;
-            background: #d1ecf1;
-        }
-        .alert-item .timestamp {
-            font-size: 11px;
-            color: #888;
-            margin-top: 2px;
-        }
-        .status-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }
-        .status-item:last-child {
-            border-bottom: none;
-        }
-        .status-item label {
-            font-weight: 600;
-            color: #666;
-        }
-        .status-item .value {
-            font-weight: 600;
-            color: #333;
-        }
-        .status-item .value.safe {
-            color: #28a745;
-        }
-        .status-item .value.danger {
-            color: #dc3545;
-        }
-        .confidence-high {
-            color: #28a745;
-        }
-        .confidence-medium {
-            color: #ffc107;
-        }
-        .confidence-low {
-            color: #dc3545;
-        }
-        #alertContainer {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        #alertContainer::-webkit-scrollbar {
-            width: 4px;
-        }
-        #alertContainer::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 4px;
-        }
-        #uploadResult .alert {
-            margin-bottom: 10px;
-        }
-        #uploadResult .progress {
-            height: 22px;
-        }
-        #uploadResult .progress-bar {
-            font-size: 12px;
-            line-height: 22px;
-        }
-        
-        /* Source indicator styles */
-        #sourceIndicator {
-            display: none;
-        }
-        #analysisTimeIndicator {
-            display: none;
-        }
-        #analysisTimeIndicator .value {
-            font-size: 12px;
-            color: #6c757d;
-        }
-        .source-badge-live {
-            background: #17a2b8;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
-            margin-left: 5px;
-        }
-        .source-badge-image {
-            background: #9C27B0;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 10px;
-            margin-left: 5px;
-        }
-        .bg-purple {
-            background-color: #9C27B0;
-            color: white;
-        }
-        
-        /* Flash animation */
-        @keyframes flash-warning {
-            0% { background-color: #fff3cd; }
-            50% { background-color: #ffc107; }
-            100% { background-color: #fff3cd; }
-        }
-        .flash-warning {
-            animation: flash-warning 1.5s ease 3;
-        }
-        
-        @keyframes pulse-danger {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        .status-badge.unsafe {
-            background: rgba(220, 53, 69, 0.2);
-            color: #dc3545;
-            border: 1px solid #dc3545;
-            animation: pulse-danger 1s ease infinite;
-        }
-        .status-badge.image-analysis {
-            background: rgba(156, 39, 176, 0.2);
-            color: #9C27B0;
-            border: 1px solid #9C27B0;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Child Safety Monitoring — Live</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+<style>
+  :root {
+    --safe:   #22c55e;
+    --warn:   #f59e0b;
+    --danger: #ef4444;
+    --dark:   #0f172a;
+    --card:   #1e293b;
+    --text:   #e2e8f0;
+  }
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .navbar-brand { font-weight: 700; letter-spacing: .5px; }
+  .video-shell {
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    aspect-ratio: 4 / 3;
+    box-shadow: 0 0 0 1px #334155, 0 12px 32px rgba(0,0,0,.55);
+  }
+  #video-stream {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+    background: #0b1220;
+  }
+  .video-overlay {
+    position: absolute; top: 10px; left: 12px;
+    background: rgba(15,23,42,.75);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: .82rem;
+    backdrop-filter: blur(4px);
+    display: flex; gap: 12px; align-items: center;
+    z-index: 3;
+  }
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #64748b; display: inline-block;
+  }
+  .dot.live  { background: var(--safe);   box-shadow: 0 0 8px var(--safe); }
+  .dot.alert { background: var(--danger); box-shadow: 0 0 8px var(--danger);
+               animation: pulse 1s infinite; }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%     { opacity: .4; }
+  }
+  .card-dark {
+    background: var(--card);
+    border: 1px solid #334155;
+    border-radius: 12px;
+  }
+  .activity-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 1rem;
+    background: #334155;
+    color: #e2e8f0;
+    transition: all .25s;
+  }
+  .activity-badge.safe   { background: rgba(34,197,94,.18);  color: var(--safe);  }
+  .activity-badge.warn   { background: rgba(245,158,11,.18); color: var(--warn);  }
+  .activity-badge.danger { background: rgba(239,68,68,.2);   color: var(--danger); }
+
+  .stat-label { font-size: .72rem; color: #94a3b8; text-transform: uppercase;
+                letter-spacing: .6px; }
+  .stat-value { font-size: 1.4rem; font-weight: 700; }
+  .alert-item {
+    border-left: 4px solid var(--danger);
+    background: rgba(239,68,68,.08);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: .85rem;
+  }
+  .alert-item.severity-medium { border-color: var(--warn); background: rgba(245,158,11,.08); }
+  .alert-item.severity-low    { border-color: #64748b; background: rgba(100,116,139,.08); }
+  .alert-empty { color: #64748b; font-style: italic; text-align: center; padding: 20px; }
+
+  .progress-thin { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; }
+  .progress-thin > div { height: 100%; background: var(--safe); transition: width .3s; }
+
+  footer { color: #64748b; font-size: .8rem; padding: 24px 0; text-align: center; }
+</style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-shield-alt"></i> Child Safety Monitor
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{{ url_for('index') }}">
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-chart-line"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('alerts_page') }}">
-                            <i class="fas fa-bell"></i> Alerts
-                            <span class="badge bg-danger" id="alertBadge" style="display: none;">0</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('about') }}">
-                            <i class="fas fa-info-circle"></i> About
-                        </a>
-                    </li>
-                </ul>
-            </div>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark" style="background:#0b1220; border-bottom:1px solid #1e293b;">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <i class="bi bi-shield-check text-success"></i> Child Safety Monitor
+    </a>
+    <ul class="navbar-nav ms-auto flex-row gap-3">
+      <li class="nav-item"><a class="nav-link active" href="/"><i class="bi bi-camera-video"></i> Live</a></li>
+      <li class="nav-item"><a class="nav-link" href="/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+      <li class="nav-item"><a class="nav-link" href="/alerts"><i class="bi bi-bell"></i> Alerts</a></li>
+      <li class="nav-item"><a class="nav-link" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+      <li class="nav-item"><a class="nav-link" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container py-4">
+  <div class="row g-4">
+
+    <!-- LEFT: video + controls -->
+    <div class="col-lg-8">
+      <div class="video-shell">
+        <div class="video-overlay">
+          <span id="status-dot" class="dot"></span>
+          <span id="overlay-text">Idle</span>
         </div>
-    </nav>
+        <img id="video-stream" src="" alt="Live stream">
+      </div>
 
-    <div class="container mt-4">
-        <div class="row">
-            <!-- Left Column: Video Feed -->
-            <div class="col-lg-8">
-                <div class="card">
-                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-video"></i> Live Feed</h5>
-                        <span class="status-badge inactive" id="statusBadge">
-                            <i class="fas fa-circle"></i> Inactive
-                        </span>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="video-container">
-                            <img id="videoFeed" src="{{ url_for('video_feed') }}" 
-                                 alt="Video Feed" class="img-fluid">
-                            <div class="video-overlay" id="overlayStatus">
-                                <span class="status-badge inactive" id="overlayBadge">
-                                    <i class="fas fa-circle"></i> Inactive
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-md-7">
-                                <div class="btn-group w-100" role="group">
-                                    <button class="btn btn-success" id="startBtn">
-                                        <i class="fas fa-play"></i> Start
-                                    </button>
-                                    <button class="btn btn-danger" id="stopBtn" disabled>
-                                        <i class="fas fa-stop"></i> Stop
-                                    </button>
-                                    <button class="btn btn-warning" id="resetBtn">
-                                        <i class="fas fa-redo"></i> Reset
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="col-md-5 text-end">
-                                <button class="btn btn-info" id="captureBtn">
-                                    <i class="fas fa-camera"></i> Capture
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <button id="btn-start" class="btn btn-success">
+          <i class="bi bi-play-fill"></i> Start
+        </button>
+        <button id="btn-stop" class="btn btn-outline-danger" disabled>
+          <i class="bi bi-stop-fill"></i> Stop
+        </button>
+        <button id="btn-capture" class="btn btn-outline-light">
+          <i class="bi bi-camera"></i> Capture Frame
+        </button>
+        <button id="btn-reset" class="btn btn-outline-warning">
+          <i class="bi bi-arrow-clockwise"></i> Reset State
+        </button>
 
-            <!-- Right Column: Status & Upload -->
-            <div class="col-lg-4">
-                <!-- Status Card -->
-                <div class="card">
-                    <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Status</h5>
-                        <span class="badge bg-light text-dark" id="statusSource">Live</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="status-item">
-                            <label>Activity:</label>
-                            <span id="currentActivity" class="value">None</span>
-                        </div>
-                        <div class="status-item">
-                            <label>Confidence:</label>
-                            <span id="currentConfidence" class="value confidence-low">0%</span>
-                        </div>
-                        <div class="status-item">
-                            <label>Safety Status:</label>
-                            <span id="safetyStatus" class="value safe">✅ Safe</span>
-                        </div>
-                        <div class="status-item">
-                            <label>Alert Count:</label>
-                            <span id="alertCount" class="value">0</span>
-                        </div>
-                        <div class="status-item">
-                            <label>FPS:</label>
-                            <span id="fpsDisplay" class="value">0</span>
-                        </div>
-                        <!-- Source indicator -->
-                        <div class="status-item" id="sourceIndicator" style="display: none;">
-                            <label>Source:</label>
-                            <span id="dataSource" class="value text-info">Live Feed</span>
-                        </div>
-                        <!-- Analysis Time -->
-                        <div class="status-item" id="analysisTimeIndicator" style="display: none;">
-                            <label>Analyzed At:</label>
-                            <span id="analysisTime" class="value text-muted" style="font-size: 12px;">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Upload Image Card -->
-                <div class="card mt-3">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0"><i class="fas fa-upload"></i> Upload Image</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="uploadForm" enctype="multipart/form-data">
-                            <div class="mb-3">
-                                <input type="file" class="form-control" id="imageInput" 
-                                       accept="image/*" required>
-                                <div class="form-text" id="fileInfo">Select an image to analyze</div>
-                            </div>
-                            <button type="submit" class="btn btn-primary w-100" id="uploadBtn">
-                                <i class="fas fa-upload"></i> Analyze Image
-                            </button>
-                        </form>
-                        <div id="uploadResult" class="mt-3 upload-result-container"></div>
-                    </div>
-                </div>
-
-                <!-- Recent Alerts -->
-                <div class="card mt-3">
-                    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0"><i class="fas fa-bell"></i> Recent Alerts</h5>
-                        <span class="badge bg-light text-dark" id="alertCountBadge">0</span>
-                    </div>
-                    <div class="card-body" id="alertContainer">
-                        <div class="text-muted text-center py-3">No alerts yet</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <label class="btn btn-outline-info ms-auto mb-0">
+          <i class="bi bi-upload"></i> Analyze Image
+          <input type="file" id="upload-input" accept="image/*" hidden>
+        </label>
+      </div>
     </div>
 
-    <!-- Loading Spinner Template -->
-    <div id="loadingTemplate" style="display: none;">
-        <div class="text-center py-3">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2 text-muted">Processing image...</p>
-        </div>
-    </div>
+    <!-- RIGHT: status panels -->
+    <div class="col-lg-4">
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+      <!-- Current Activity -->
+      <div class="card card-dark p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="stat-label">Current Activity</div>
+          <span id="fps-badge" class="badge bg-secondary">-- FPS</span>
+        </div>
+        <div id="activity-badge" class="activity-badge">Waiting…</div>
+
+        <div class="mt-3">
+          <div class="d-flex justify-content-between small text-muted mb-1">
+            <span>Confidence</span>
+            <span id="confidence-text">0%</span>
+          </div>
+          <div class="progress-thin"><div id="confidence-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Quick stats -->
+      <div class="card card-dark p-3 mb-3">
+        <div class="row text-center g-2">
+          <div class="col-6">
+            <div class="stat-label">Safety</div>
+            <div id="safety-value" class="stat-value text-success">Safe</div>
+          </div>
+          <div class="col-6">
+            <div class="stat-label">Alerts</div>
+            <div id="alert-count" class="stat-value">0</div>
+          </div>
+          <div class="col-6">
+            <div class="stat-label">Frames</div>
+            <div id="frame-count" class="stat-value" style="font-size:1.1rem">0</div>
+          </div>
+          <div class="col-6">
+            <div class="stat-label">Uptime</div>
+            <div id="uptime" class="stat-value" style="font-size:1.1rem">0s</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent alerts -->
+      <div class="card card-dark p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="stat-label">Recent Alerts</div>
+          <a href="/alerts" class="small text-info text-decoration-none">View all →</a>
+        </div>
+        <div id="alerts-list">
+          <div class="alert-empty">No alerts yet</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  Child Safety Monitoring System &middot; SSIPMT Raipur &middot; Batch 2023–27
+</footer>
+
+<!-- Socket.IO -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  const $ = (id) => document.getElementById(id);
+  const els = {
+    video:      $('video-stream'),
+    statusDot:  $('status-dot'),
+    overlayTxt: $('overlay-text'),
+    btnStart:   $('btn-start'),
+    btnStop:    $('btn-stop'),
+    btnCapture: $('btn-capture'),
+    btnReset:   $('btn-reset'),
+    uploadInput:$('upload-input'),
+    activity:   $('activity-badge'),
+    confidenceTxt: $('confidence-text'),
+    confidenceBar: $('confidence-bar'),
+    safetyVal:  $('safety-value'),
+    alertCount: $('alert-count'),
+    frameCount: $('frame-count'),
+    uptime:     $('uptime'),
+    fpsBadge:   $('fps-badge'),
+    alertsList: $('alerts-list'),
+  };
+
+  let isMonitoring = false;
+  let uptimeTimer = null;
+  let startTimestamp = null;
+  let localAlerts = [];
+
+  // ---- control buttons ----
+  els.btnStart.addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/start', { method: 'POST' });
+      const j = await r.json();
+      if (j.status === 'started' || j.status === 'already_running') {
+        setMonitoring(true);
+      } else {
+        alert('Failed to start: ' + (j.error || 'unknown'));
+      }
+    } catch (e) { alert('Error: ' + e); }
+  });
+
+  els.btnStop.addEventListener('click', async () => {
+    try {
+      await fetch('/api/stop', { method: 'POST' });
+      setMonitoring(false);
+    } catch (e) { alert('Error: ' + e); }
+  });
+
+  els.btnCapture.addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/capture', { method: 'POST' });
+      const j = await r.json();
+      if (j.error) { alert(j.error); return; }
+      const a = document.createElement('a');
+      a.href = j.url; a.download = j.filename; a.click();
+    } catch (e) { alert('Error: ' + e); }
+  });
+
+  els.btnReset.addEventListener('click', async () => {
+    try {
+      await fetch('/api/reset', { method: 'POST' });
+      localAlerts = [];
+      renderAlerts();
+      els.alertCount.textContent = '0';
+    } catch (e) { alert('Error: ' + e); }
+  });
+
+  els.uploadInput.addEventListener('change', async (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const fd = new FormData();
+    fd.append('image', file);
+    try {
+      const r = await fetch('/api/upload', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (j.error) { alert(j.error); return; }
+      const res = j.result || {};
+      if (res.processed_image) {
+        openImagePreview(res.processed_image, res);
+      }
+    } catch (e) { alert('Upload failed: ' + e); }
+    ev.target.value = '';
+  });
+
+  function openImagePreview(b64, res) {
+    const w = window.open('', '_blank', 'width=900,height=700');
+    w.document.write(`
+      <html><head><title>Analysis Result</title>
+      <style>
+        body{margin:0;background:#0f172a;color:#e2e8f0;font-family:system-ui;padding:16px}
+        img{max-width:100%;border-radius:8px}
+        .row{margin-top:12px;font-size:1.05rem}
+        .k{color:#94a3b8;margin-right:8px}
+      </style></head><body>
+        <img src="data:image/jpeg;base64,${b64}">
+        <div class="row"><span class="k">Activity:</span> ${res.activity || 'N/A'}</div>
+        <div class="row"><span class="k">Confidence:</span> ${((res.confidence || 0) * 100).toFixed(1)}%</div>
+        <div class="row"><span class="k">Safety:</span> ${res.safe ? '✅ Safe' : '⚠️ Unsafe'}</div>
+        <div class="row"><span class="k">Message:</span> ${res.message || ''}</div>
+      </body></html>
+    `);
+  }
+
+  // ---- monitoring state ----
+  function setMonitoring(on) {
+    isMonitoring = on;
+    if (on) {
+      els.video.src = `/video_feed?t=${Date.now()}`;   // cache-buster
+      els.btnStart.disabled = true;
+      els.btnStop.disabled = false;
+      els.statusDot.className = 'dot live';
+      els.overlayTxt.textContent = 'LIVE';
+      startTimestamp = Date.now();
+      if (uptimeTimer) clearInterval(uptimeTimer);
+      uptimeTimer = setInterval(updateUptime, 1000);
+    } else {
+      els.video.src = '';
+      els.btnStart.disabled = false;
+      els.btnStop.disabled = true;
+      els.statusDot.className = 'dot';
+      els.overlayTxt.textContent = 'Idle';
+      if (uptimeTimer) { clearInterval(uptimeTimer); uptimeTimer = null; }
+      els.activity.textContent = 'Waiting…';
+      els.activity.className = 'activity-badge';
+      els.confidenceBar.style.width = '0%';
+      els.confidenceTxt.textContent = '0%';
+      els.fpsBadge.textContent = '-- FPS';
+    }
+  }
+
+  function updateUptime() {
+    if (!startTimestamp) return;
+    const s = Math.floor((Date.now() - startTimestamp) / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    els.uptime.textContent = h
+      ? `${h}h ${m}m`
+      : (m ? `${m}m ${sec}s` : `${sec}s`);
+  }
+
+  // ---- activity badge coloring ----
+  const UNSAFE = ['falling', 'climbing'];
+  const CAUTION = ['running'];
+
+  function updateActivity(activity, confidence, safe) {
+    els.activity.textContent = activity || 'Unknown';
+    let cls = 'activity-badge';
+    if (!safe || UNSAFE.includes((activity || '').toLowerCase())) cls += ' danger';
+    else if (CAUTION.includes((activity || '').toLowerCase()))     cls += ' warn';
+    else                                                            cls += ' safe';
+    els.activity.className = cls;
+
+    const pct = Math.round((confidence || 0) * 100);
+    els.confidenceTxt.textContent = pct + '%';
+    els.confidenceBar.style.width = pct + '%';
+    els.confidenceBar.style.background =
+      cls.includes('danger') ? 'var(--danger)' :
+      cls.includes('warn')   ? 'var(--warn)'   : 'var(--safe)';
+  }
+
+  function renderAlerts() {
+    if (!localAlerts.length) {
+      els.alertsList.innerHTML = '<div class="alert-empty">No alerts yet</div>';
+      return;
+    }
+    const items = localAlerts.slice(-5).reverse().map(a => {
+      const sev = (a.severity || 'high').toLowerCase();
+      return `<div class="alert-item severity-${sev}">
+        <div class="d-flex justify-content-between">
+          <strong>${(a.activity || 'event').toUpperCase()}</strong>
+          <span class="text-muted small">${a.timestamp || ''}</span>
+        </div>
+        <div>${a.message || ''}</div>
+      </div>`;
+    }).join('');
+    els.alertsList.innerHTML = items;
+  }
+
+  // ---- socket events ----
+  socket.on('connect', () => {
+    console.log('Socket connected');
+    socket.emit('get_status');
+  });
+
+  socket.on('status_update', (data) => {
+    if (typeof data.monitoring === 'boolean' && data.monitoring !== isMonitoring) {
+      setMonitoring(data.monitoring);
+    }
+    if (typeof data.activity === 'string') {
+      updateActivity(data.activity, data.confidence || 0, data.safe !== false);
+      els.safetyVal.textContent = data.safe === false ? 'UNSAFE' : 'Safe';
+      els.safetyVal.className = 'stat-value ' +
+        (data.safe === false ? 'text-danger' : 'text-success');
+    }
+    if (typeof data.fps === 'number') {
+      els.fpsBadge.textContent = data.fps.toFixed(1) + ' FPS';
+    }
+    if (typeof data.alert_count === 'number') {
+      els.alertCount.textContent = data.alert_count;
+    }
+  });
+
+  socket.on('alert', (alert) => {
+    localAlerts.push(alert);
+    els.alertCount.textContent = localAlerts.length;
+    els.statusDot.className = 'dot alert';
+    setTimeout(() => {
+      if (isMonitoring) els.statusDot.className = 'dot live';
+    }, 2000);
+    renderAlerts();
+    playAlertBeep();
+  });
+
+  // Short beep using WebAudio (no file needed)
+  function playAlertBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.08;
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start();
+      setTimeout(() => { osc.stop(); ctx.close(); }, 180);
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---- poll status every 5 s as fallback ----
+  setInterval(async () => {
+    try {
+      const r = await fetch('/api/status');
+      const j = await r.json();
+      if (typeof j.monitoring_active === 'boolean' && j.monitoring_active !== isMonitoring) {
+        setMonitoring(j.monitoring_active);
+      }
+      if (typeof j.frame_count === 'number') els.frameCount.textContent = j.frame_count;
+      if (typeof j.fps === 'number')         els.fpsBadge.textContent = j.fps.toFixed(1) + ' FPS';
+      if (j.activity) updateActivity(j.activity, j.confidence, j.safe);
+
+      if (Array.isArray(j.alerts) && j.alerts.length !== localAlerts.length) {
+        localAlerts = j.alerts;
+        els.alertCount.textContent = localAlerts.length;
+        renderAlerts();
+      }
+    } catch (e) { /* ignore */ }
+  }, 5000);
+</script>
 </body>
 </html>
