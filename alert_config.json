@@ -1,0 +1,62 @@
+{
+  "enabled_methods": ["desktop", "log"],
+
+  "email": {
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "smtp_security": "tls",
+    "sender_email": "your_email@gmail.com",
+    "sender_password": "your_app_password",
+    "recipient_emails": [
+      "parent@example.com",
+      "staff@school.org"
+    ]
+  },
+
+  "telegram": {
+    "bot_token": "123456789:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+    "chat_ids": [
+      "123456789",
+      "-987654321"
+    ],
+    "parse_mode": "Markdown"
+  },
+
+  "sms": {
+    "provider": "generic",
+    "endpoint": "https://api.your-sms-gateway.com/send",
+    "method": "POST",
+    "auth_header": {
+      "name": "Authorization",
+      "value": "Bearer YOUR_API_KEY"
+    },
+    "extra_headers": {
+      "Content-Type": "application/json"
+    },
+    "extra_params": {},
+    "recipients": [
+      "+919999999999"
+    ],
+    "sender_id": "CHLDSF",
+    "message_field": "message",
+    "to_field": "to"
+  },
+
+  "webhook": {
+    "urls": [
+      "https://hooks.slack.com/services/XXX/YYY/ZZZ",
+      "https://your-server.example.com/child-safety/alert"
+    ],
+    "method": "POST",
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "timeout": 5
+  },
+
+  "throttling": {
+    "cooldown_seconds": 5,
+    "max_alerts_per_minute": 10,
+    "duplicate_window_seconds": 30
+  }
+}
