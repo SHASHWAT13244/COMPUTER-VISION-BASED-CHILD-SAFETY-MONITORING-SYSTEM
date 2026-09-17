@@ -5,14 +5,13 @@ import os
 import sys
 import subprocess
 import webbrowser
-import time
+import shlex
 import argparse
 import platform
 import tempfile
 
 
 def print_banner():
-    """Print application banner"""
     banner = """
     ╔═══════════════════════════════════════════════════════════════╗
     ║                                                               ║
@@ -32,7 +31,6 @@ def print_banner():
 
 
 def check_environment():
-    """Check if environment is set up correctly"""
     print("\n🔍 Checking environment...")
 
     python_version = platform.python_version()
@@ -41,7 +39,7 @@ def check_environment():
         print("   ⚠️  Python 3.10+ recommended")
 
     try:
-        import cv2
+        import cv2  # noqa: F401
         print("   ✅ OpenCV")
     except ImportError:
         print("   ❌ OpenCV not installed")
@@ -56,14 +54,14 @@ def check_environment():
         return False
 
     try:
-        import mediapipe
+        import mediapipe  # noqa: F401
         print("   ✅ MediaPipe")
     except ImportError:
         print("   ❌ MediaPipe not installed")
         return False
 
     try:
-        import ultralytics
+        import ultralytics  # noqa: F401
         print("   ✅ Ultralytics YOLO")
     except ImportError:
         print("   ❌ Ultralytics not installed")
@@ -79,21 +77,19 @@ def check_environment():
 
 
 def run_command(cmd, cwd=None):
-    """Run a command and display output"""
+    """Run a command and display output. cmd may be str or list."""
     try:
+        args = shlex.split(cmd) if isinstance(cmd, str) else cmd
         process = subprocess.Popen(
-            cmd,
-            shell=True,
+            args,
             cwd=cwd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
         )
-
         for line in process.stdout:
             print(line, end='')
-
         process.wait()
         return process.returncode == 0
     except KeyboardInterrupt:
@@ -105,32 +101,23 @@ def run_command(cmd, cwd=None):
 
 
 def run_monitoring():
-    """Run the monitoring system"""
     print("\n🔍 Starting monitoring system...")
     print("   Press 'q' to quit")
     print("   Press 's' to save frame")
     print("   Press 'r' to reset")
     print()
-
-    run_command("python app.py")
+    run_command([sys.executable, "app.py"])
 
 
 def run_flask():
-    """Run the Flask web application.
-
-    Note: flask_app.py handles browser auto-open itself (it knows the
-    actual bound port). Do not open a second browser from here.
-    """
     print("\n🌐 Starting web interface...")
     print("   Browser will open automatically on the correct port")
     print("   Press Ctrl+C to stop")
     print()
-
-    run_command("python flask_app.py")
+    run_command([sys.executable, "flask_app.py"])
 
 
 def run_training():
-    """Run training"""
     print("\n🏋️ Training activity recognition model...")
 
     if not os.path.exists('data/training_data.npz'):
@@ -152,7 +139,7 @@ m.train_from_data()
     try:
         with os.fdopen(fd, 'w') as f:
             f.write(train_script)
-        run_command(f'python "{tmp_path}"')
+        run_command([sys.executable, tmp_path])
     finally:
         try:
             os.remove(tmp_path)
@@ -161,7 +148,6 @@ m.train_from_data()
 
 
 def run_data_prep():
-    """Run data preparation"""
     print("\n📁 Preparing training data...")
 
     activities = ['walking', 'running', 'sitting', 'falling', 'climbing']
@@ -179,28 +165,25 @@ def run_data_prep():
     if not has_videos:
         print("   ⚠️  No videos found in data/activities/")
         print("   Creating directory structure...")
-        run_command("python data_preparation.py --create-dirs")
+        run_command([sys.executable, "data_preparation.py", "--create-dirs"])
         print("\n   Please add videos to the created directories")
         print("   Then run: python data_preparation.py --process")
         return
 
-    run_command("python data_preparation.py --process")
+    run_command([sys.executable, "data_preparation.py", "--process"])
 
 
 def run_tests():
-    """Run tests"""
     print("\n🧪 Running system tests...")
-    run_command("python -m pytest tests/ -v --tb=short")
+    run_command([sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short"])
 
 
 def run_synthetic():
-    """Generate synthetic data"""
     print("\n📊 Generating synthetic training data...")
-    run_command("python data_preparation.py --synthetic 200")
+    run_command([sys.executable, "data_preparation.py", "--synthetic", "200"])
 
 
 def main():
-    """Main entry point"""
     parser = argparse.ArgumentParser(
         description="Child Safety Monitoring System Launcher"
     )
