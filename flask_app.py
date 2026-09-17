@@ -16,7 +16,6 @@ import threading
 import queue
 import logging
 from datetime import datetime
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import webbrowser
@@ -25,7 +24,7 @@ import atexit
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, render_template, Response, request, jsonify, send_file, url_for
+from flask import Flask, render_template, Response, request, jsonify, send_file
 from flask_cors import CORS
 from flask_socketio import SocketIO, emit
 
@@ -78,11 +77,10 @@ activity_recognizer = ActivityRecognizer(
 safety_engine   = SafetyEngine()
 tracker         = PersonTracker(max_lost_frames=10, min_confidence=0.5)
 alert_system    = AlertSystem(sound_enabled=False, display_enabled=True, log_enabled=True)
-advanced_alert  = AdvancedAlertSystem('alert_config.json')
+advanced_alert  = AdvancedAlertSystem(Config.ALERT_CONFIG_PATH)
 visualizer      = Visualizer(show_fps=True, show_info=True, show_activity=True)
 perf_monitor    = PerformanceMonitor()
 
-# Background pool for blocking I/O (SMTP, HTTP webhooks, etc.)
 _alert_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='alert')
 
 
@@ -109,12 +107,12 @@ perf_monitor.start_monitoring()
 # =====================================================================
 #  CONSTANTS
 # =====================================================================
-MAX_ALERTS_KEPT  = 1000    # ring-buffer cap for _alerts_list
-MAX_EMPTY_GRACE  = 5       # consecutive YOLO misses before clearing pose cache
+MAX_ALERTS_KEPT  = 1000
+MAX_EMPTY_GRACE  = 5
 
 
 # =====================================================================
-#  SHARED STATE (single producer, many consumers)
+#  SHARED STATE
 # =====================================================================
 _current_status = {
     'activity': 'None',
@@ -129,28 +127,22 @@ _status_lock = threading.Lock()
 _alerts_list = []
 _alerts_lock = threading.Lock()
 
-keypoint_buffer   = []              # guarded by _processing_lock
-_processing_lock  = threading.Lock()
+keypoint_buffers = {}
+_processing_lock = threading.Lock()
 
-# Guards torch model inference across reader thread + Flask request threads
 _recognizer_lock  = threading.Lock()
-
-# Guards writes to alert_config.json
 _config_write_lock = threading.Lock()
 
-# Camera state
 camera           = None
 _reader_thread   = None
 _reader_running  = False
 _reader_lock     = threading.Lock()
 
-# Per-MJPEG-consumer fan-out
 _subscribers       = set()
 _subscribers_lock  = threading.Lock()
 _last_frame_for_capture = None
 _last_frame_lock        = threading.Lock()
 
-# Cached detections / keypoints between heavy-model runs
 _last_boxes              = []
 _last_keypoints          = None
 _empty_detection_frames  = 0
@@ -160,7 +152,7 @@ monitoring_active = False
 
 
 # =====================================================================
-#  FRAME PROCESSING (worker thread only)
+#  FRAME PROCESSING
 # =====================================================================
 def _empty_result():
     return {
@@ -175,12 +167,7 @@ def _empty_result():
 
 
 def process_single_frame(frame):
-    """Run detection / pose / activity / safety on one frame.
-
-    Uses frame-count-based scheduling to run YOLO and MediaPipe less
-    often than every frame. Only called from the camera reader thread.
-    """
-    global _last_boxes, _last_keypoints, keypoint_buffer, _empty_detection_frames
+    global _last_boxes, _last_keypoints, _empty_detection_frames
 
     with _status_lock:
         fc = _current_status['frame_count']
@@ -188,7 +175,6 @@ def process_single_frame(frame):
     do_detect = (fc % Config.DETECT_EVERY_N_FRAMES == 0) or not _last_boxes
     do_pose   = (fc % Config.POSE_EVERY_N_FRAMES  == 0) or _last_keypoints is None
 
-    # ---- Detection (YOLO) ----
     if do_detect:
         try:
             _last_boxes = detector.detect(frame)
@@ -197,17 +183,26 @@ def process_single_frame(frame):
             _last_boxes = []
     detections = _last_boxes
 
-    # ---- Detection miss: grace period before wiping pose cache ----
+    try:
+        tracks = tracker.update(detections, frame)
+    except Exception as e:
+        logger.error(f"Tracker error: {e}")
+        tracks = {}
+
+    with _processing_lock:
+        for tid in list(keypoint_buffers.keys()):
+            if tid not in tracks:
+                del keypoint_buffers[tid]
+
     if not detections:
         _empty_detection_frames += 1
         if _empty_detection_frames >= MAX_EMPTY_GRACE:
             _last_keypoints = None
             with _processing_lock:
-                keypoint_buffer.clear()
+                keypoint_buffers.clear()
         return _empty_result()
     _empty_detection_frames = 0
 
-    # ---- Pose (MediaPipe) ----
     if do_pose:
         try:
             _last_keypoints = pose_estimator.extract_keypoints(frame)
@@ -218,25 +213,29 @@ def process_single_frame(frame):
 
     result = _empty_result()
     result['detections'] = detections
+    result['tracks'] = tracks
 
     if keypoints is None:
         return result
 
-    # ---- Activity buffer (guarded) ----
+    primary_track_id = next(iter(tracks.keys()), 0)
+    keypoints_flat = keypoints[:, :3].flatten()
+
     with _processing_lock:
-        keypoint_buffer.append(keypoints[:, :3].flatten())
-        if len(keypoint_buffer) > Config.SEQUENCE_LENGTH:
-            keypoint_buffer.pop(0)
-        buffer_snapshot = list(keypoint_buffer)
+        buf = keypoint_buffers.setdefault(primary_track_id, [])
+        buf.append(keypoints_flat)
+        if len(buf) > Config.SEQUENCE_LENGTH:
+            del buf[:-Config.SEQUENCE_LENGTH]
+        buffer_snapshot = list(buf)
 
     if len(buffer_snapshot) < Config.SEQUENCE_LENGTH:
         result['activity'] = 'Collecting data...'
         return result
 
-    # ---- LSTM prediction (serialized) ----
     try:
         with _recognizer_lock:
-            activity, confidence = activity_recognizer.predict_activity(buffer_snapshot)
+            activity, confidence = activity_recognizer.predict_activity(
+                buffer_snapshot)
     except Exception as e:
         logger.error(f"Activity predict error: {e}")
         return result
@@ -247,7 +246,6 @@ def process_single_frame(frame):
     result['activity']   = activity
     result['confidence'] = float(confidence)
 
-    # ---- Safety rules ----
     try:
         safety = safety_engine.check_safety(
             activity=activity,
@@ -267,10 +265,9 @@ def process_single_frame(frame):
 
 
 def annotate_frame(frame, result):
-    """Draw boxes, pose, tracker IDs and status overlay on a copy of the frame."""
     annotated = frame.copy()
-
     safe = result.get('safe', True)
+
     for det in result.get('detections', []):
         x1, y1, x2, y2 = det['bbox']
         color = (0, 255, 0) if safe else (0, 0, 255)
@@ -292,19 +289,22 @@ def annotate_frame(frame, result):
         pass
 
     try:
-        if result.get('detections'):
+        if result.get('tracks'):
             annotated = tracker.draw_tracks(annotated)
     except Exception:
         pass
 
     try:
-        visualizer.fps = _current_status.get('fps', 0.0)
+        with _status_lock:
+            fps = _current_status.get('fps', 0.0)
+            last_alerts = list(_current_status.get('alerts', []))[-3:]
+        visualizer.fps = fps
         annotated = visualizer.draw_status(
             annotated,
             result.get('activity', 'None'),
             result.get('confidence', 0.0),
             result.get('safe', True),
-            _current_status.get('alerts', [])[-3:],
+            last_alerts,
         )
     except Exception as e:
         logger.debug(f"Status overlay error: {e}")
@@ -313,7 +313,7 @@ def annotate_frame(frame, result):
 
 
 # =====================================================================
-#  ALERTS: async delivery + bounded list
+#  ALERTS
 # =====================================================================
 def _safe_send_alert(alert_info):
     try:
@@ -322,17 +322,19 @@ def _safe_send_alert(alert_info):
         logger.error(f"Advanced alert error: {e}")
 
 
-def _append_alert(alert_info):
-    """Append to bounded _alerts_list and return an atomic snapshot."""
-    with _alerts_lock:
-        _alerts_list.append(alert_info)
-        if len(_alerts_list) > MAX_ALERTS_KEPT:
-            del _alerts_list[:-MAX_ALERTS_KEPT]
-        return list(_alerts_list)
+def _next_alert_id_locked():
+    return len(_alerts_list) + 1
+
+
+def _append_alert_locked(alert_info):
+    alert_info['id'] = _next_alert_id_locked()
+    _alerts_list.append(alert_info)
+    if len(_alerts_list) > MAX_ALERTS_KEPT:
+        del _alerts_list[:-MAX_ALERTS_KEPT]
+    return list(_alerts_list)
 
 
 def _dispatch_alert(alert_info):
-    """Push socket + async delivery; must be called outside locks."""
     try:
         socketio.emit('alert', alert_info)
     except Exception:
@@ -345,12 +347,10 @@ def _dispatch_alert(alert_info):
 
 
 # =====================================================================
-#  FRAME FAN-OUT (per-MJPEG-consumer)
+#  FRAME FAN-OUT
 # =====================================================================
 def _publish_frame(frame):
-    """Publish frame to every subscriber; keep last for /api/capture."""
     global _last_frame_for_capture
-
     with _last_frame_lock:
         _last_frame_for_capture = frame
 
@@ -360,7 +360,6 @@ def _publish_frame(frame):
             try:
                 q.put_nowait(frame)
             except queue.Full:
-                # Drop the oldest for this subscriber, then retry once
                 try:
                     q.get_nowait()
                     q.put_nowait(frame)
@@ -371,15 +370,13 @@ def _publish_frame(frame):
 
 
 # =====================================================================
-#  CAMERA READER THREAD  (the ONLY place cv2.VideoCapture is used)
+#  CAMERA READER
 # =====================================================================
 def _open_camera():
-    """Open camera with the lowest-latency backend available."""
     backend = cv2.CAP_DSHOW if os.name == 'nt' else cv2.CAP_V4L2
     cap = cv2.VideoCapture(Config.CAMERA_ID, backend)
     if not cap.isOpened():
-        cap = cv2.VideoCapture(Config.CAMERA_ID)   # fallback
-
+        cap = cv2.VideoCapture(Config.CAMERA_ID)
     if not cap.isOpened():
         return None
 
@@ -390,22 +387,17 @@ def _open_camera():
         cap.set(cv2.CAP_PROP_BUFFERSIZE, Config.CAMERA_BUFFER_SIZE)
     except Exception:
         pass
-
     return cap
 
 
 def camera_reader_loop(cap):
-    """Single producer: grab → infer → annotate → publish latest frame."""
     global camera, _reader_running, monitoring_active
-    global _last_boxes, _last_keypoints, keypoint_buffer, _empty_detection_frames
+    global _last_boxes, _last_keypoints, _empty_detection_frames
 
     camera = cap
-
-    # Flush driver's internal buffer
     for _ in range(5):
         cap.grab()
 
-    # Warm-up inference (forces lazy model init: YOLO + MediaPipe)
     ok, warm = cap.retrieve()
     if ok and warm is not None:
         try:
@@ -428,7 +420,6 @@ def camera_reader_loop(cap):
 
             loop_start = time.perf_counter()
 
-            # Drop stale frames in the OS/driver queue
             for _ in range(Config.GRAB_FLUSH_COUNT):
                 if not cap.grab():
                     break
@@ -442,7 +433,6 @@ def camera_reader_loop(cap):
             with _status_lock:
                 _current_status['frame_count'] += 1
 
-            # Inference + drawing
             try:
                 result = process_single_frame(frame)
                 annotated = annotate_frame(frame, result)
@@ -451,10 +441,8 @@ def camera_reader_loop(cap):
                 annotated = frame
                 result = _empty_result()
 
-            # Publish
             _publish_frame(annotated)
 
-            # ---- Status update ----
             now = time.time()
             frame_times.append(now)
             if len(frame_times) > 30:
@@ -474,7 +462,6 @@ def camera_reader_loop(cap):
 
                 if result.get('alert') and not result.get('safe', True):
                     alert_info = {
-                        'id': -1,
                         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                         'message': result.get('message', 'Unsafe behaviour detected'),
                         'severity': result.get('severity', 'medium'),
@@ -483,31 +470,31 @@ def camera_reader_loop(cap):
                         'source': 'live_feed',
                     }
 
-            # Side-effects outside locks
             if alert_info is not None:
-                alert_info['id'] = len(_alerts_list) + 1
-                snapshot = _append_alert(alert_info)
+                with _alerts_lock:
+                    snapshot = _append_alert_locked(alert_info)
                 with _status_lock:
                     _current_status['alerts'] = snapshot
                 _dispatch_alert(alert_info)
 
-            # Broadcast status once per second
             if now - last_emit > 1.0:
                 last_emit = now
-                try:
-                    socketio.emit('status_update', {
+                with _status_lock:
+                    status_payload = {
                         'activity': _current_status['activity'],
                         'confidence': _current_status['confidence'],
                         'safe': _current_status['safe'],
-                        'alert_count': len(_alerts_list),
                         'fps': _current_status['fps'],
-                    })
+                    }
+                with _alerts_lock:
+                    status_payload['alert_count'] = len(_alerts_list)
+                try:
+                    socketio.emit('status_update', status_payload)
                 except Exception:
                     pass
                 perf_monitor.add_metric('fps', _current_status['fps'])
                 perf_monitor.add_metric('frames_processed', frame_idx)
 
-            # Pace the loop
             elapsed = time.perf_counter() - loop_start
             sleep_for = target_dt - elapsed
             if sleep_for > 0:
@@ -527,7 +514,7 @@ def camera_reader_loop(cap):
 
 def _start_reader():
     global _reader_thread, _reader_running, monitoring_active, _start_time
-    global _last_boxes, _last_keypoints, keypoint_buffer, _empty_detection_frames
+    global _last_boxes, _last_keypoints, _empty_detection_frames
     global _last_frame_for_capture
 
     with _reader_lock:
@@ -543,15 +530,22 @@ def _start_reader():
         monitoring_active = True
         _start_time       = datetime.now()
 
-        # Reset pipeline state (do NOT clear _subscribers — existing MJPEG
-        # consumers must keep receiving once monitoring begins)
         _last_boxes     = []
         _last_keypoints = None
         _empty_detection_frames = 0
+
         with _processing_lock:
-            keypoint_buffer.clear()
+            keypoint_buffers.clear()
+
         with _last_frame_lock:
             _last_frame_for_capture = None
+
+        with _status_lock:
+            _current_status['frame_count'] = 0
+            _current_status['fps'] = 0.0
+            _current_status['activity'] = 'None'
+            _current_status['confidence'] = 0.0
+            _current_status['safe'] = True
 
         _reader_thread = threading.Thread(
             target=camera_reader_loop, args=(cap,), daemon=True
@@ -564,26 +558,34 @@ def _start_reader():
 
 def _stop_reader():
     global _reader_running, monitoring_active, camera, _reader_thread
+
     with _reader_lock:
         _reader_running   = False
         monitoring_active = False
+        thread = _reader_thread
 
-    if _reader_thread:
-        _reader_thread.join(timeout=3.0)
-        _reader_thread = None
+    if thread is not None:
+        thread.join(timeout=5.0)
+        with _reader_lock:
+            if _reader_thread is thread:
+                _reader_thread = None
 
-    if camera:
+        if thread.is_alive():
+            logger.warning("Camera reader thread did not stop within timeout.")
+
+    if camera is not None and (thread is None or not thread.is_alive()):
         try:
             camera.release()
         except Exception:
             pass
         camera = None
+
     logger.info("Monitoring stopped")
     return True
 
 
 # =====================================================================
-#  SYNTHETIC SEQUENCE HELPERS (used by image upload)
+#  SYNTHETIC SEQUENCE HELPERS
 # =====================================================================
 def create_synthetic_sequence(keypoints, seq_length=30):
     if keypoints is None:
@@ -731,7 +733,9 @@ def start_monitoring():
         if started:
             socketio.emit('status_update', {'monitoring': True})
             return jsonify({'status': 'started'})
-        if monitoring_active:
+        with _reader_lock:
+            active = monitoring_active
+        if active:
             return jsonify({'status': 'already_running'})
         return jsonify({'status': 'error', 'error': 'Could not open camera'}), 500
     except Exception as e:
@@ -752,25 +756,26 @@ def stop_monitoring():
 
 @app.route('/api/reset', methods=['POST'])
 def reset_system():
-    """Stop reader if active, wipe state, then restart if it was running."""
     try:
-        was_running = monitoring_active
+        with _reader_lock:
+            was_running = monitoring_active
         if was_running:
             _stop_reader()
 
         global _last_boxes, _last_keypoints, _empty_detection_frames
         with _processing_lock:
-            keypoint_buffer.clear()
-            with _alerts_lock:
-                _alerts_list.clear()
-            with _status_lock:
-                _current_status['alerts']     = []
-                _current_status['activity']   = 'None'
-                _current_status['confidence'] = 0.0
-                _current_status['safe']       = True
-            _last_boxes             = []
-            _last_keypoints         = None
-            _empty_detection_frames = 0
+            keypoint_buffers.clear()
+        with _alerts_lock:
+            _alerts_list.clear()
+        with _status_lock:
+            _current_status['alerts']     = []
+            _current_status['activity']   = 'None'
+            _current_status['confidence'] = 0.0
+            _current_status['safe']       = True
+
+        _last_boxes             = []
+        _last_keypoints         = None
+        _empty_detection_frames = 0
 
         activity_recognizer.reset_buffer()
         safety_engine.reset()
@@ -831,7 +836,8 @@ def process_single_image_enhanced(frame):
         activities = ['walking', 'running', 'sitting', 'falling', 'climbing']
         best_activity, best_conf = None, 0.0
         for act in activities:
-            seq = create_activity_specific_sequence(keypoints, act, Config.SEQUENCE_LENGTH)
+            seq = create_activity_specific_sequence(keypoints, act,
+                                                    Config.SEQUENCE_LENGTH)
             if seq is None:
                 continue
             try:
@@ -868,7 +874,9 @@ def process_single_image_enhanced(frame):
             result['severity'] = safety.get('severity', 'low')
             result['alert']    = safety.get('alert')
         else:
-            result['message'] = f'Activity not recognized with sufficient confidence ({best_conf:.2%})'
+            result['message'] = (
+                f'Activity not recognized with sufficient confidence '
+                f'({best_conf:.2%})')
 
         vis = frame.copy()
         for det in detections:
@@ -902,26 +910,26 @@ def upload_image():
         result = process_single_image_enhanced(frame)
 
         alert_info = None
-        with _processing_lock:
-            if result.get('activity') and result['activity'] != 'None':
-                with _status_lock:
-                    _current_status['activity']   = result['activity']
-                    _current_status['confidence'] = result.get('confidence', 0.0)
-                    _current_status['safe']       = result.get('safe', True)
+        if result.get('activity') and result['activity'] != 'None':
+            with _status_lock:
+                _current_status['activity']   = result['activity']
+                _current_status['confidence'] = result.get('confidence', 0.0)
+                _current_status['safe']       = result.get('safe', True)
 
-                if not result.get('safe', True) and result.get('alert'):
-                    alert_info = {
-                        'id': len(_alerts_list) + 1,
-                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'message': result.get('message', f'Unsafe activity: {result["activity"]}'),
-                        'severity': result.get('severity', 'high'),
-                        'activity': result.get('activity', 'unknown'),
-                        'confidence': float(result.get('confidence', 0.0)),
-                        'source': 'image_upload',
-                    }
-                    snapshot = _append_alert(alert_info)
-                    with _status_lock:
-                        _current_status['alerts'] = snapshot
+            if not result.get('safe', True) and result.get('alert'):
+                alert_info = {
+                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'message': result.get(
+                        'message', f'Unsafe activity: {result["activity"]}'),
+                    'severity': result.get('severity', 'high'),
+                    'activity': result.get('activity', 'unknown'),
+                    'confidence': float(result.get('confidence', 0.0)),
+                    'source': 'image_upload',
+                }
+                with _alerts_lock:
+                    snapshot = _append_alert_locked(alert_info)
+                with _status_lock:
+                    _current_status['alerts'] = snapshot
 
         if alert_info is not None:
             _dispatch_alert(alert_info)
@@ -940,8 +948,8 @@ def upload_image():
 
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         fname = f"uploaded_{ts}.jpg"
-        os.makedirs('static/uploads', exist_ok=True)
-        cv2.imwrite(os.path.join('static/uploads', fname), frame)
+        os.makedirs(Config.UPLOADS_DIR, exist_ok=True)
+        cv2.imwrite(os.path.join(Config.UPLOADS_DIR, fname), frame)
 
         return jsonify({
             'result': result,
@@ -956,16 +964,19 @@ def upload_image():
 
 @app.route('/api/capture', methods=['POST'])
 def capture_frame():
-    if not monitoring_active:
+    with _reader_lock:
+        active = monitoring_active
+    if not active:
         return jsonify({'error': 'Monitoring not active'}), 400
     with _last_frame_lock:
-        frame = _last_frame_for_capture.copy() if _last_frame_for_capture is not None else None
+        frame = (_last_frame_for_capture.copy()
+                 if _last_frame_for_capture is not None else None)
     if frame is None:
         return jsonify({'error': 'No frame available'}), 500
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
     fname = f"capture_{ts}.jpg"
-    os.makedirs('captures', exist_ok=True)
-    path = os.path.join('captures', fname)
+    os.makedirs(Config.CAPTURES_DIR, exist_ok=True)
+    path = os.path.join(Config.CAPTURES_DIR, fname)
     cv2.imwrite(path, frame)
     return jsonify({'filename': fname, 'path': path, 'url': f'/captures/{fname}'})
 
@@ -1008,7 +1019,7 @@ def manage_settings():
             if key in data:
                 advanced_alert.config.setdefault(key, {}).update(data[key])
         with _config_write_lock:
-            with open('alert_config.json', 'w') as f:
+            with open(Config.ALERT_CONFIG_PATH, 'w') as f:
                 json.dump(advanced_alert.config, f, indent=2)
             advanced_alert.reload_config()
         return jsonify({'status': 'updated'})
@@ -1045,7 +1056,7 @@ def export_alerts():
 
 
 # =====================================================================
-#  VIDEO STREAM (MJPEG consumer — no inference here)
+#  VIDEO STREAM
 # =====================================================================
 @app.route('/video_feed')
 def video_feed():
@@ -1061,8 +1072,8 @@ def video_feed():
 
 
 def generate_video_feed():
-    """Each consumer gets its own bounded queue; producer fans out."""
-    placeholder = np.zeros((Config.FRAME_HEIGHT, Config.FRAME_WIDTH, 3), dtype=np.uint8)
+    placeholder = np.zeros((Config.FRAME_HEIGHT, Config.FRAME_WIDTH, 3),
+                           dtype=np.uint8)
     cv2.putText(placeholder, "Stream idle - press Start",
                 (30, Config.FRAME_HEIGHT // 2),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2, cv2.LINE_AA)
@@ -1077,7 +1088,9 @@ def generate_video_feed():
             try:
                 frame = q.get(timeout=1.0)
             except queue.Empty:
-                if not monitoring_active:
+                with _reader_lock:
+                    active = monitoring_active
+                if not active:
                     now = time.time()
                     if now - last_placeholder_time > 0.5:
                         last_placeholder_time = now
@@ -1113,7 +1126,7 @@ def generate_video_feed():
 # =====================================================================
 @app.route('/captures/<filename>')
 def serve_capture(filename):
-    path = os.path.join('captures', filename)
+    path = os.path.join(Config.CAPTURES_DIR, filename)
     if os.path.exists(path):
         return send_file(path, mimetype='image/jpeg')
     return jsonify({'error': 'File not found'}), 404
@@ -1121,7 +1134,7 @@ def serve_capture(filename):
 
 @app.route('/alerts/<filename>')
 def serve_alert_image(filename):
-    path = os.path.join('alerts', filename)
+    path = os.path.join(Config.ALERTS_DIR, filename)
     if os.path.exists(path):
         return send_file(path, mimetype='image/jpeg')
     return jsonify({'error': 'File not found'}), 404
@@ -1133,7 +1146,8 @@ def serve_alert_image(filename):
 @socketio.on('connect')
 def handle_connect():
     logger.info(f"Client connected: {request.sid}")
-    emit('connected', {'status': 'connected', 'timestamp': datetime.now().isoformat()})
+    emit('connected', {'status': 'connected',
+                       'timestamp': datetime.now().isoformat()})
 
 
 @socketio.on('disconnect')
@@ -1145,7 +1159,9 @@ def handle_disconnect():
 def handle_start():
     try:
         ok = _start_reader()
-        emit('status_update', {'monitoring': bool(ok or monitoring_active)})
+        with _reader_lock:
+            active = monitoring_active
+        emit('status_update', {'monitoring': bool(ok or active)})
     except Exception as e:
         logger.error(f"socket start error: {e}")
         emit('error', {'message': str(e)})
@@ -1173,8 +1189,10 @@ def handle_get_status():
             }
         with _alerts_lock:
             alert_count = len(_alerts_list)
+        with _reader_lock:
+            active = monitoring_active
         emit('status_update', {
-            'monitoring_active': monitoring_active,
+            'monitoring_active': active,
             'activity':   snap['activity'],
             'confidence': snap['confidence'],
             'safe':       snap['safe'],
@@ -1256,15 +1274,18 @@ atexit.register(_shutdown)
 #  MAIN
 # =====================================================================
 def main():
-    for d in ('static/uploads', 'captures', 'alerts', 'saved_models', 'data/activities'):
+    for d in (Config.UPLOADS_DIR, Config.CAPTURES_DIR,
+              Config.ALERTS_DIR, Config.MODELS_DIR,
+              Config.ACTIVITY_DATA_DIR):
         os.makedirs(d, exist_ok=True)
 
     host  = Config.FLASK_HOST
     port  = find_available_port(Config.FLASK_PORT)
-    debug = False            # MUST be False — reloader spawns a second process
+    debug = False
     logger.info(f"Starting on {host}:{port} (debug={debug})")
 
-    threading.Thread(target=open_brave_browser, args=(port,), daemon=True).start()
+    threading.Thread(target=open_brave_browser, args=(port,),
+                     daemon=True).start()
 
     try:
         socketio.run(
@@ -1278,12 +1299,14 @@ def main():
     except Exception as e:
         logger.error(f"socketio.run failed: {e}; falling back to app.run")
         try:
-            app.run(host=host, port=port, debug=False, threaded=True, use_reloader=False)
+            app.run(host=host, port=port, debug=False,
+                    threaded=True, use_reloader=False)
         except Exception as e2:
             logger.error(f"app.run failed: {e2}")
             port = find_available_port(port + 1)
             logger.info(f"Retrying on port {port}")
-            app.run(host=host, port=port, debug=False, threaded=True, use_reloader=False)
+            app.run(host=host, port=port, debug=False,
+                    threaded=True, use_reloader=False)
 
 
 if __name__ == '__main__':
