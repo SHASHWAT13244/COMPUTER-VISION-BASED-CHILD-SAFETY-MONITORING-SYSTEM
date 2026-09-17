@@ -266,8 +266,7 @@ class AdvancedAlertSystem:
     #  CHANNEL: EMAIL
     # ================================================================
     def _send_email(self, alert):
-        if not HAS_REQUESTS and False:
-            pass  # email uses stdlib, no requests needed
+        # Email uses only the stdlib (smtplib); requests is not required.
         cfg = self.config['email']
 
         smtp_server = cfg.get('smtp_server')
