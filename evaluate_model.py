@@ -6,6 +6,7 @@ Calculates Accuracy, Precision, Recall, F1-Score with visualizations
 import os
 import sys
 import json
+import argparse
 import numpy as np
 
 import matplotlib
@@ -25,7 +26,8 @@ from models.activity_recognizer import ActivityRecognizer
 
 
 def evaluate_model(data_path='data/training_data.npz',
-                   model_path='saved_models/activity_model.pth'):
+                   model_path='saved_models/activity_model.pth',
+                   allow_untrained=False):
     print("\n" + "=" * 70)
     print("📊 MODEL PERFORMANCE EVALUATION")
     print("=" * 70)
@@ -56,14 +58,20 @@ def evaluate_model(data_path='data/training_data.npz',
     )
 
     if not os.path.exists(model_path):
-        print(f"⚠️  Model not found: {model_path}")
-        print("Using untrained model...")
+        print(f"❌ Model not found: {model_path}")
+        if not allow_untrained:
+            print("   Train the model first, or pass --allow-untrained to evaluate anyway.")
+            return None
+        print("⚠️  --allow-untrained set: metrics may be meaningless.")
     else:
         try:
             recognizer.load_model(model_path)
             print(f"✅ Model loaded from: {model_path}")
         except Exception as e:
-            print(f"⚠️  Failed to load model ({e}). Using untrained model...")
+            print(f"❌ Failed to load model ({e}).")
+            if not allow_untrained:
+                return None
+            print("⚠️  --allow-untrained set: continuing with untrained model.")
 
     print("\n🔮 Making predictions...")
     predictions = []
@@ -183,6 +191,7 @@ def evaluate_model(data_path='data/training_data.npz',
         'dropped_predictions': dropped,
         'model_path':       model_path,
         'data_path':        data_path,
+        'used_untrained_model': not os.path.exists(model_path),
     }
 
     with open(Config.EVALUATION_RESULTS_PATH, 'w') as f:
@@ -328,8 +337,23 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Evaluate activity model")
+    parser.add_argument("--data", "-d", type=str,
+                        default="data/training_data.npz",
+                        help="Path to training data NPZ")
+    parser.add_argument("--model", "-m", type=str,
+                        default="saved_models/activity_model.pth",
+                        help="Path to model weights")
+    parser.add_argument("--allow-untrained", action="store_true",
+                        help="Evaluate with random weights if no model is found")
+    args = parser.parse_args()
+
     try:
-        results = evaluate_model()
+        results = evaluate_model(
+            data_path=args.data,
+            model_path=args.model,
+            allow_untrained=args.allow_untrained,
+        )
         if results:
             print("\n" + "=" * 70)
             print("✅ EVALUATION COMPLETE")
