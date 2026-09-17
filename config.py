@@ -9,26 +9,26 @@ from pathlib import Path
 
 
 class Config:
-    """
-    Configuration class for the entire system
-    """
+    """Configuration class for the entire system."""
 
     # ==================== Paths ====================
-    BASE_DIR      = Path(os.path.dirname(os.path.abspath(__file__)))
-    DATA_DIR      = os.path.join(BASE_DIR, 'data')
-    MODELS_DIR    = os.path.join(BASE_DIR, 'saved_models')
-    STATIC_DIR    = os.path.join(BASE_DIR, 'static')
-    TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
-    CAPTURES_DIR  = os.path.join(BASE_DIR, 'captures')
+    BASE_DIR       = Path(os.path.dirname(os.path.abspath(__file__)))
+    DATA_DIR       = os.path.join(BASE_DIR, 'data')
+    MODELS_DIR     = os.path.join(BASE_DIR, 'saved_models')
+    STATIC_DIR     = os.path.join(BASE_DIR, 'static')
+    TEMPLATES_DIR  = os.path.join(BASE_DIR, 'templates')
+    CAPTURES_DIR   = os.path.join(BASE_DIR, 'captures')
     RECORDINGS_DIR = os.path.join(BASE_DIR, 'recordings')
-    UPLOADS_DIR   = os.path.join(STATIC_DIR, 'uploads')
-    ALERTS_DIR    = os.path.join(BASE_DIR, 'alerts')
+    UPLOADS_DIR    = os.path.join(STATIC_DIR, 'uploads')
+    ALERTS_DIR     = os.path.join(BASE_DIR, 'alerts')
+    ALERT_CONFIG_PATH       = os.path.join(BASE_DIR, 'alert_config.json')
+    EVALUATION_RESULTS_PATH = os.path.join(BASE_DIR, 'evaluation_results.json')
+    EVALUATION_PLOTS_PATH   = os.path.join(BASE_DIR, 'evaluation_plots.png')
 
     for _d in [DATA_DIR, MODELS_DIR, STATIC_DIR, TEMPLATES_DIR,
                CAPTURES_DIR, RECORDINGS_DIR, UPLOADS_DIR, ALERTS_DIR]:
         os.makedirs(_d, exist_ok=True)
 
-    # Activity data directories
     ACTIVITY_DATA_DIR = os.path.join(DATA_DIR, 'activities')
     ACTIVITY_CLASSES  = ['walking', 'running', 'sitting', 'falling', 'climbing']
 
@@ -40,25 +40,23 @@ class Config:
     CONFIDENCE_THRESHOLD = 0.5
     IOU_THRESHOLD        = 0.4
 
-    # MediaPipe Pose
     POSE_MIN_DETECTION_CONFIDENCE = 0.5
     POSE_MIN_TRACKING_CONFIDENCE  = 0.5
     POSE_MODEL_COMPLEXITY         = 1
 
-    # Activity Recognition (LSTM)
-    SEQUENCE_LENGTH   = 30
-    NUM_KEYPOINTS     = 33
-    LSTM_HIDDEN_SIZE  = 128
-    LSTM_NUM_LAYERS   = 2
-    LSTM_DROPOUT      = 0.2
+    SEQUENCE_LENGTH    = 30
+    NUM_KEYPOINTS      = 33
+    LSTM_HIDDEN_SIZE   = 128
+    LSTM_NUM_LAYERS    = 2
+    LSTM_DROPOUT       = 0.2
     LSTM_BIDIRECTIONAL = False
 
     # ==================== Training Parameters ====================
-    EPOCHS          = 50
-    BATCH_SIZE      = 32
-    LEARNING_RATE   = 0.001
+    EPOCHS           = 50
+    BATCH_SIZE       = 32
+    LEARNING_RATE    = 0.001
     TRAIN_TEST_SPLIT = 0.2
-    RANDOM_SEED     = 42
+    RANDOM_SEED      = 42
 
     # ==================== Camera Settings ====================
     CAMERA_ID          = 0
@@ -75,8 +73,8 @@ class Config:
     STREAM_MAX_FPS        = 30
 
     # ==================== Safety Rules ====================
-    UNSAFE_ACTIVITIES       = ['falling', 'climbing']
-    UNSAFE_ZONES            = ['kitchen', 'pool_area', 'stairs', 'balcony']
+    UNSAFE_ACTIVITIES        = ['falling', 'climbing']
+    UNSAFE_ZONES             = ['kitchen', 'pool_area', 'stairs', 'balcony']
     FALL_DETECTION_THRESHOLD = 0.6
     MIN_FALL_FRAMES          = 5
     FALL_COOLDOWN_SECONDS    = 5
@@ -120,7 +118,8 @@ class Config:
 
     @classmethod
     def get_activity_label(cls, index):
-        return cls.ACTIVITY_CLASSES[index] if index < len(cls.ACTIVITY_CLASSES) else 'unknown'
+        return (cls.ACTIVITY_CLASSES[index]
+                if 0 <= index < len(cls.ACTIVITY_CLASSES) else 'unknown')
 
     @classmethod
     def get_activity_index(cls, label):
@@ -131,22 +130,26 @@ class Config:
         return cls.UNSAFE_ACTIVITIES
 
     @classmethod
+    def get_project_path(cls, *parts):
+        return os.path.join(cls.BASE_DIR, *parts)
+
+    @classmethod
     def to_dict(cls):
-        """Return a JSON-serializable dict of config values."""
         out = {}
-        for k, v in cls.__dict__.items():
-            if k.startswith('_') or callable(v):
-                continue
-            if isinstance(v, Path):
-                out[k] = str(v)
-            elif isinstance(v, (str, int, float, bool, list, dict, tuple, type(None))):
-                out[k] = v
-            else:
-                try:
-                    json.dumps(v)
-                    out[k] = v
-                except Exception:
+        for klass in reversed(cls.__mro__):
+            for k, v in vars(klass).items():
+                if k.startswith('_') or callable(v) or isinstance(v, classmethod):
                     continue
+                if isinstance(v, Path):
+                    out[k] = str(v)
+                elif isinstance(v, (str, int, float, bool, list, dict, tuple, type(None))):
+                    out[k] = v
+                else:
+                    try:
+                        json.dumps(v)
+                        out[k] = v
+                    except Exception:
+                        continue
         return out
 
     @classmethod
@@ -154,6 +157,32 @@ class Config:
         for k, v in config_dict.items():
             if hasattr(cls, k):
                 setattr(cls, k, v)
+
+    @classmethod
+    def validate(cls):
+        """Validate critical numeric config values to prevent div-by-zero etc."""
+        def _positive_int(name):
+            v = getattr(cls, name, None)
+            if not isinstance(v, int) or v < 1:
+                raise ValueError(
+                    f"Config.{name} must be a positive integer, got {v!r}")
+
+        _positive_int('DETECT_EVERY_N_FRAMES')
+        _positive_int('POSE_EVERY_N_FRAMES')
+        _positive_int('GRAB_FLUSH_COUNT')
+        _positive_int('SEQUENCE_LENGTH')
+        _positive_int('NUM_KEYPOINTS')
+
+        if cls.STREAM_MAX_FPS < 1:
+            raise ValueError("Config.STREAM_MAX_FPS must be >= 1")
+        if not (0.0 < cls.CONFIDENCE_THRESHOLD <= 1.0):
+            raise ValueError("Config.CONFIDENCE_THRESHOLD must be in (0, 1]")
+        if not (0.0 < cls.IOU_THRESHOLD <= 1.0):
+            raise ValueError("Config.IOU_THRESHOLD must be in (0, 1]")
+        return True
+
+
+Config.validate()
 
 
 class DevelopmentConfig(Config):
@@ -184,6 +213,10 @@ class TestConfig(Config):
     FPS          = 5
     EPOCHS       = 2
     BATCH_SIZE   = 8
+
+
+for _cls in (DevelopmentConfig, ProductionConfig, TestConfig):
+    _cls.validate()
 
 
 def get_config(env='development'):
