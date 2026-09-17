@@ -40,6 +40,6 @@ werkzeug==2.3.7
 # Utilities
 tqdm
 psutil
-requests>=2.31.0
+requests==2.31.0
 pyyaml
-plyer>=2.1.0
+plyer==2.1.0
