@@ -9,8 +9,8 @@ child_safety_monitoring/
 ├── 📄 run_evaluation.py               # Quick launcher for evaluation
 ├── 📄 view_training_data.py           # View training data utility
 ├── 📄 requirements.txt                # Python dependencies
-├── 📄 setup.py                        # Package setup
 ├── 📄 run.py                          # Launcher script
+├── 📄 yolov8n.pt                      # YOLOv8 nano weights (person detector)
 ├── 📄 alert_config.json               # Alert configuration (gitignored)
 ├── 📄 alert_config.example.json       # Example alert configuration
 ├── 📄 .gitignore                      # Git ignore file
@@ -69,14 +69,13 @@ child_safety_monitoring/
 ├── 📁 captures/                       # Captured frames (gitignored)
 │   └── 📄 capture_*.jpg
 │
-├── 📁 alerts/                         # Alert images (gitignored)
-│   ├── 📄 alert_*.jpg
-│   └── 📄 alert_log.jsonl             # Local alert log (JSONL)
+├── 📁 alerts/                         # Alert logs & images (gitignored)
+│   ├── 📄 alert_log.jsonl             # Local alert log (JSONL)
+│   └── 📄 alert_*.jpg
 │
 ├── 📁 recordings/                     # Recorded videos (gitignored)
 │   └── 📄 monitoring_*.mp4
 │
 └── 📁 tests/                          # Tests
     ├── 📄 __init__.py
-    ├── 📄 test_system.py              # System tests
-    └── 📄 test_activity_recognizer.py # Unit tests for LSTM predictor
+    └── 📄 test_system.py              # System tests
