@@ -9,8 +9,8 @@ child_safety_monitoring/
 ├── 📄 run_evaluation.py               # Quick launcher for evaluation
 ├── 📄 view_training_data.py           # View training data utility
 ├── 📄 requirements.txt                # Python dependencies
+├── 📄 setup.py                        # Package setup
 ├── 📄 run.py                          # Launcher script
-├── 📄 yolov8n.pt                      # YOLOv8 nano weights (person detector)
 ├── 📄 alert_config.json               # Alert configuration (gitignored)
 ├── 📄 alert_config.example.json       # Example alert configuration
 ├── 📄 .gitignore                      # Git ignore file
@@ -18,6 +18,7 @@ child_safety_monitoring/
 ├── 📄 Project Structure.txt           # This file
 ├── 📄 evaluation_results.json         # Latest evaluation metrics
 ├── 📄 evaluation_plots.png            # Latest evaluation plots
+├── 📄 yolov8n.pt                      # YOLOv8 Nano pretrained weights
 │
 ├── 📁 models/                         # ML Models
 │   ├── 📄 __init__.py
@@ -38,9 +39,7 @@ child_safety_monitoring/
 │   ├── 📁 css/
 │   │   └── 📄 style.css              # Custom CSS styles
 │   ├── 📁 js/
-│   │   ├── 📄 script.js              # Main JavaScript
-│   │   ├── 📄 dashboard.js           # Dashboard JavaScript
-│   │   └── 📄 alerts.js              # Alerts JavaScript
+│   │   └── 📄 settings.js            # Settings JavaScript
 │   └── 📁 uploads/                    # Uploaded images (gitignored)
 │
 ├── 📁 templates/                      # HTML Templates
@@ -69,8 +68,7 @@ child_safety_monitoring/
 ├── 📁 captures/                       # Captured frames (gitignored)
 │   └── 📄 capture_*.jpg
 │
-├── 📁 alerts/                         # Alert logs & images (gitignored)
-│   ├── 📄 alert_log.jsonl             # Local alert log (JSONL)
+├── 📁 alerts/                         # Alert images (gitignored)
 │   └── 📄 alert_*.jpg
 │
 ├── 📁 recordings/                     # Recorded videos (gitignored)
@@ -78,4 +76,5 @@ child_safety_monitoring/
 │
 └── 📁 tests/                          # Tests
     ├── 📄 __init__.py
-    └── 📄 test_system.py              # System tests
+    ├── 📄 test_system.py              # System tests
+    └── 📄 test_activity_recognizer.py # Activity recognition tests
