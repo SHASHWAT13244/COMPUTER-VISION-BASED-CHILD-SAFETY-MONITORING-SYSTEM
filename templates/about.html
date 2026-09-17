@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,8 @@
 
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}">
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
@@ -97,20 +99,9 @@
   }
   .pipeline-step strong { color: #93c5fd; }
 
-  .table-clean th {
-    color: var(--muted);
-    font-weight: 500;
-    text-transform: uppercase;
-    font-size: .72rem;
-    letter-spacing: .5px;
-    border-color: var(--border);
-    padding: 10px 8px;
-  }
-  .table-clean td {
-    border-color: var(--border);
-    padding: 10px 8px;
-    vertical-align: middle;
-  }
+  .kpi-label { color: var(--muted); font-size: .74rem;
+               text-transform: uppercase; letter-spacing: .6px; }
+  .kpi-value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
 
   a.link-soft { color: #93c5fd; text-decoration: none; }
   a.link-soft:hover { text-decoration: underline; }
@@ -120,7 +111,6 @@
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-dark"
      style="background:#0b1220; border-bottom:1px solid #1e293b;">
   <div class="container-fluid px-4">
@@ -139,7 +129,6 @@
 
 <div class="container-fluid px-4 py-4">
 
-  <!-- Hero -->
   <div class="hero mb-4">
     <div class="d-flex align-items-center gap-3 mb-2">
       <i class="bi bi-shield-check text-success" style="font-size:2.4rem;"></i>
@@ -162,173 +151,108 @@
 
   <div class="row g-4">
 
-    <!-- LEFT COLUMN -->
     <div class="col-lg-8">
 
-      <!-- What the system does -->
       <div class="card card-dark p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-rocket-takeoff text-info"></i> What the system does</h5>
         <div class="row g-3">
           <div class="col-md-6">
             <div class="feature-icon fi-blue"><i class="bi bi-bounding-box"></i></div>
             <strong>Person Detection</strong>
-            <p class="text-muted small mb-0">
-              YOLOv8 locates children in each frame, drawing bounding boxes and confidence scores.
-            </p>
+            <p class="text-muted small mb-0">YOLOv8 locates children in each frame, drawing bounding boxes and confidence scores.</p>
           </div>
           <div class="col-md-6">
             <div class="feature-icon fi-green"><i class="bi bi-person-arms-up"></i></div>
             <strong>Pose Estimation</strong>
-            <p class="text-muted small mb-0">
-              MediaPipe extracts 33 body landmarks (shoulders, elbows, hips, knees, ankles …).
-            </p>
+            <p class="text-muted small mb-0">MediaPipe extracts 33 body landmarks (shoulders, elbows, hips, knees, ankles …).</p>
           </div>
           <div class="col-md-6">
             <div class="feature-icon fi-amber"><i class="bi bi-graph-up-arrow"></i></div>
             <strong>Activity Recognition</strong>
-            <p class="text-muted small mb-0">
-              A 30-frame sequence of keypoints is classified by an LSTM into one of five activities.
-            </p>
+            <p class="text-muted small mb-0">A 30-frame sequence of keypoints is classified by an LSTM into one of five activities.</p>
           </div>
           <div class="col-md-6">
             <div class="feature-icon fi-red"><i class="bi bi-exclamation-triangle"></i></div>
             <strong>Safety Rule Engine</strong>
-            <p class="text-muted small mb-0">
-              Rule-based logic flags unsafe behaviour — falls, climbing, running in restricted areas.
-            </p>
+            <p class="text-muted small mb-0">Rule-based logic flags unsafe behaviour — falls, climbing, running in restricted areas.</p>
           </div>
           <div class="col-md-6">
             <div class="feature-icon fi-purple"><i class="bi bi-bell"></i></div>
             <strong>Alert Generation</strong>
-            <p class="text-muted small mb-0">
-              Caregivers are notified instantly via desktop, email, Telegram, SMS or webhook.
-            </p>
+            <p class="text-muted small mb-0">Caregivers are notified instantly via desktop, email, Telegram, SMS or webhook.</p>
           </div>
           <div class="col-md-6">
             <div class="feature-icon fi-cyan"><i class="bi bi-bar-chart"></i></div>
             <strong>Live Dashboard</strong>
-            <p class="text-muted small mb-0">
-              Web UI shows the video stream, current activity, confidence, FPS and full alert history.
-            </p>
+            <p class="text-muted small mb-0">Web UI shows the video stream, current activity, confidence, FPS and full alert history.</p>
           </div>
         </div>
       </div>
 
-      <!-- Pipeline -->
       <div class="card card-dark p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-diagram-3 text-info"></i> Processing pipeline</h5>
-
-        <div class="pipeline-step">
-          <strong>1. Video Input</strong> —
-          <span class="text-muted small">frame captured from webcam / CCTV via OpenCV</span>
-        </div>
-        <div class="pipeline-step">
-          <strong>2. Object Detection</strong> —
-          <span class="text-muted small">YOLOv8 (every N<sup>th</sup> frame for real-time throughput)</span>
-        </div>
-        <div class="pipeline-step">
-          <strong>3. Pose Estimation</strong> —
-          <span class="text-muted small">MediaPipe Pose → 33 landmarks × (x, y, z)</span>
-        </div>
-        <div class="pipeline-step">
-          <strong>4. Sequence Buffer</strong> —
-          <span class="text-muted small">rolling window of 30 frames (99 features per frame)</span>
-        </div>
-        <div class="pipeline-step">
-          <strong>5. LSTM Classifier</strong> —
-          <span class="text-muted small">walking · running · sitting · falling · climbing</span>
-        </div>
-        <div class="pipeline-step">
-          <strong>6. Safety Rules</strong> —
-          <span class="text-muted small">confidence threshold + activity + pose heuristics</span>
-        </div>
-        <div class="pipeline-step mb-0">
-          <strong>7. Alert / Dashboard</strong> —
-          <span class="text-muted small">Socket.IO push + MJPEG stream to browser</span>
-        </div>
+        <div class="pipeline-step"><strong>1. Video Input</strong> — <span class="text-muted small">frame captured from webcam / CCTV via OpenCV</span></div>
+        <div class="pipeline-step"><strong>2. Object Detection</strong> — <span class="text-muted small">YOLOv8 (every N<sup>th</sup> frame for real-time throughput)</span></div>
+        <div class="pipeline-step"><strong>3. Pose Estimation</strong> — <span class="text-muted small">MediaPipe Pose → 33 landmarks × (x, y, z)</span></div>
+        <div class="pipeline-step"><strong>4. Sequence Buffer</strong> — <span class="text-muted small">rolling window of 30 frames (99 features per frame)</span></div>
+        <div class="pipeline-step"><strong>5. LSTM Classifier</strong> — <span class="text-muted small">walking · running · sitting · falling · climbing</span></div>
+        <div class="pipeline-step"><strong>6. Safety Rules</strong> — <span class="text-muted small">confidence threshold + activity + pose heuristics</span></div>
+        <div class="pipeline-step mb-0"><strong>7. Alert / Dashboard</strong> — <span class="text-muted small">Socket.IO push + MJPEG stream to browser</span></div>
       </div>
 
-      <!-- Detected activities -->
       <div class="card card-dark p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-person-walking text-info"></i> Detected activities</h5>
         <div class="table-responsive">
           <table class="table table-dark table-clean mb-0">
             <thead>
               <tr>
-                <th>Activity</th>
-                <th>Status</th>
-                <th>Description</th>
+                <th>Activity</th><th>Status</th><th>Description</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>🚶 Walking</td>
-                <td><span class="badge bg-success">Safe</span></td>
-                <td class="text-muted small">Normal walking behaviour</td>
-              </tr>
-              <tr>
-                <td>🏃 Running</td>
-                <td><span class="badge bg-warning text-dark">Caution</span></td>
-                <td class="text-muted small">Running may increase the risk of injury</td>
-              </tr>
-              <tr>
-                <td>🪑 Sitting</td>
-                <td><span class="badge bg-success">Safe</span></td>
-                <td class="text-muted small">Normal sitting position</td>
-              </tr>
-              <tr>
-                <td>💫 Falling</td>
-                <td><span class="badge bg-danger">Unsafe</span></td>
-                <td class="text-muted small">Potential fall requiring immediate attention</td>
-              </tr>
-              <tr>
-                <td>🧗 Climbing</td>
-                <td><span class="badge bg-danger">Unsafe</span></td>
-                <td class="text-muted small">Potentially dangerous climbing behaviour</td>
-              </tr>
+              <tr><td>🚶 Walking</td><td><span class="badge bg-success">Safe</span></td><td class="text-muted small">Normal walking behaviour</td></tr>
+              <tr><td>🏃 Running</td><td><span class="badge bg-warning text-dark">Caution</span></td><td class="text-muted small">Running may increase the risk of injury</td></tr>
+              <tr><td>🪑 Sitting</td><td><span class="badge bg-success">Safe</span></td><td class="text-muted small">Normal sitting position</td></tr>
+              <tr><td>💫 Falling</td><td><span class="badge bg-danger">Unsafe</span></td><td class="text-muted small">Potential fall requiring immediate attention</td></tr>
+              <tr><td>🧗 Climbing</td><td><span class="badge bg-danger">Unsafe</span></td><td class="text-muted small">Potentially dangerous climbing behaviour</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Model performance -->
       <div class="card card-dark p-4">
         <h5 class="mb-3"><i class="bi bi-graph-up text-info"></i> Model performance (pilot evaluation)</h5>
         <div class="row text-center g-3 mb-3">
           <div class="col-6 col-md-3">
             <div class="kpi-label">Accuracy</div>
-            <div class="kpi-value text-success" style="font-size:1.6rem">94.1%</div>
+            <div class="kpi-value text-success">94.1%</div>
           </div>
           <div class="col-6 col-md-3">
             <div class="kpi-label">Macro F1</div>
-            <div class="kpi-value text-info" style="font-size:1.6rem">93.1%</div>
+            <div class="kpi-value text-info">93.1%</div>
           </div>
           <div class="col-6 col-md-3">
             <div class="kpi-label">Weighted F1</div>
-            <div class="kpi-value text-info" style="font-size:1.6rem">94.3%</div>
+            <div class="kpi-value text-info">94.3%</div>
           </div>
           <div class="col-6 col-md-3">
             <div class="kpi-label">Classes</div>
-            <div class="kpi-value text-warning" style="font-size:1.6rem">5</div>
+            <div class="kpi-value text-warning">5</div>
           </div>
         </div>
         <p class="text-muted small mb-0">
           <i class="bi bi-info-circle"></i>
-          Metrics are computed on a small pilot dataset (82 sequences) and reflect
-          pipeline correctness rather than deployment-scale performance. Expanding the
-          dataset is part of the planned future work.
+          Metrics are computed on a small pilot dataset and reflect pipeline correctness
+          rather than deployment-scale performance.
         </p>
       </div>
 
     </div>
 
-    <!-- RIGHT COLUMN -->
     <div class="col-lg-4">
 
-      <!-- Tech stack -->
       <div class="card card-dark p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-stack text-info"></i> Technology stack</h5>
-
         <div class="mb-3">
           <div class="text-muted small mb-1">Detection</div>
           <span class="badge-tech">Ultralytics YOLOv8</span>
@@ -360,7 +284,6 @@
         </div>
       </div>
 
-      <!-- Team -->
       <div class="card card-dark p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-people text-info"></i> Project team</h5>
         <div class="row g-3">
@@ -399,7 +322,6 @@
         </div>
       </div>
 
-      <!-- Guide -->
       <div class="card card-dark p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-mortarboard text-info"></i> Project guide</h5>
         <div class="d-flex align-items-center gap-3">
@@ -412,10 +334,9 @@
         </div>
       </div>
 
-      <!-- Project metadata -->
       <div class="card card-dark p-4">
         <h5 class="mb-3"><i class="bi bi-info-square text-info"></i> Project details</h5>
-        <table class="table table-dark table-clean mb-0">
+        <table class="table table-dark mb-0">
           <tbody>
             <tr><td class="text-muted">Semester</td><td>7<sup>th</sup></td></tr>
             <tr><td class="text-muted">Batch</td><td>2023–27</td></tr>
