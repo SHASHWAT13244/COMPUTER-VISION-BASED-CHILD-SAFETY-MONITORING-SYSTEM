@@ -8,7 +8,6 @@ import os
 
 
 def run_evaluation():
-    """Run the evaluation script"""
     print("\n🚀 Running Model Evaluation...")
 
     if not os.path.exists('data/training_data.npz'):
