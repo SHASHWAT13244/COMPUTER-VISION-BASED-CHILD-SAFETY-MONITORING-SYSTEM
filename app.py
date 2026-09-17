@@ -8,12 +8,12 @@ import cv2
 import time
 import numpy as np
 from datetime import datetime
+from collections import defaultdict, deque
 import os
 import sys
 import argparse
 import logging
 
-# Add project root to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import Config
@@ -33,13 +33,15 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+MAX_ALERTS_KEPT = 1000
+
+
 class ChildSafetyMonitor:
-    """
-    Main application class for child safety monitoring
-    """
+    """Main application class for child safety monitoring."""
 
     def __init__(self, config=None):
         self.config = config or Config()
+        self.config.validate()
 
         logger.info("Initializing Child Safety Monitoring System...")
 
@@ -50,22 +52,21 @@ class ChildSafetyMonitor:
         )
 
         self.pose_estimator = PoseEstimator(
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
-            model_complexity=1
+            min_detection_confidence=self.config.POSE_MIN_DETECTION_CONFIDENCE,
+            min_tracking_confidence=self.config.POSE_MIN_TRACKING_CONFIDENCE,
+            model_complexity=self.config.POSE_MODEL_COMPLEXITY
         )
 
         self.activity_recognizer = ActivityRecognizer(
             sequence_length=self.config.SEQUENCE_LENGTH,
-            num_keypoints=33,
+            num_keypoints=self.config.NUM_KEYPOINTS,
             num_classes=len(self.config.ACTIVITY_CLASSES),
-            hidden_size=128,
-            num_layers=2,
-            dropout=0.2
+            hidden_size=self.config.LSTM_HIDDEN_SIZE,
+            num_layers=self.config.LSTM_NUM_LAYERS,
+            dropout=self.config.LSTM_DROPOUT
         )
 
         self.safety_engine = SafetyEngine()
-
         self.tracker = PersonTracker(max_lost_frames=10, min_confidence=0.5)
 
         self.alert_system = AlertSystem(
@@ -75,14 +76,17 @@ class ChildSafetyMonitor:
         )
 
         self.visualizer = Visualizer(show_fps=True, show_info=True)
-
         self.perf_monitor = PerformanceMonitor()
         self.perf_monitor.start_monitoring()
 
         self.running = False
         self.cap = None
-        self.keypoint_buffer = []
-        self.alerts = []
+
+        self.keypoint_buffers = defaultdict(
+            lambda: deque(maxlen=self.config.SEQUENCE_LENGTH))
+
+        self.alerts = deque(maxlen=MAX_ALERTS_KEPT)
+
         self.current_activity = None
         self.current_confidence = 0.0
         self.is_safe = True
@@ -98,12 +102,10 @@ class ChildSafetyMonitor:
         logger.info(f"Unsafe activities: {self.config.UNSAFE_ACTIVITIES}")
 
     def _load_pretrained_model(self):
-        """Load pre-trained activity recognition model if available"""
         model_paths = [
             os.path.join(self.config.MODELS_DIR, 'activity_model.pth'),
             os.path.join(self.config.MODELS_DIR, 'best_activity_model.pth'),
         ]
-
         for path in model_paths:
             if os.path.exists(path):
                 try:
@@ -112,12 +114,10 @@ class ChildSafetyMonitor:
                     return
                 except Exception as e:
                     logger.error(f"Error loading model from {path}: {e}")
-
         logger.info("No pre-trained model found. Using random weights.")
         logger.info("You can train the model using training data.")
 
     def start(self, camera_id=0, save_video=False, output_path=None):
-        """Start the monitoring system"""
         logger.info(f"Starting camera (ID: {camera_id})...")
 
         self.cap = cv2.VideoCapture(camera_id)
@@ -133,9 +133,10 @@ class ChildSafetyMonitor:
         if save_video:
             if output_path is None:
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                output_path = f"recordings/monitoring_{timestamp}.mp4"
+                output_path = os.path.join(
+                    self.config.RECORDINGS_DIR,
+                    f"monitoring_{timestamp}.mp4")
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
-
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             self.video_writer = cv2.VideoWriter(
                 output_path, fourcc, self.config.FPS,
@@ -157,7 +158,6 @@ class ChildSafetyMonitor:
         return True
 
     def _main_loop(self):
-        """Main processing loop"""
         while self.running:
             ret, frame = self.cap.read()
             if not ret:
@@ -166,7 +166,6 @@ class ChildSafetyMonitor:
 
             self.frame_count += 1
             frame_start_time = time.time()
-
             processed_frame, result = self._process_frame(frame)
 
             if self.video_writer is not None:
@@ -194,12 +193,7 @@ class ChildSafetyMonitor:
                 self._toggle_visualization()
 
     def _process_frame(self, frame):
-        """Process a single frame.
-
-        For each tracked person we run the full pipeline (pose -> activity
-        -> safety) and aggregate results. The last unsafe detection wins
-        for the top-level status; all unsafe detections produce alerts.
-        """
+        """Process one frame with per-person pose and activity."""
         result = {
             'activity': 'None',
             'confidence': 0.0,
@@ -223,36 +217,52 @@ class ChildSafetyMonitor:
             x1, y1, x2, y2 = det['bbox']
             cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-        # --- Per-person processing ---
+        active_ids = set(tracks.keys())
+        for tid in list(self.keypoint_buffers.keys()):
+            if tid not in active_ids:
+                del self.keypoint_buffers[tid]
+
+        pose_drawn = False
+
         for track_id, track in tracks.items():
             bbox = track['bbox']
             x1, y1, x2, y2 = bbox
+            x1 = max(0, x1); y1 = max(0, y1)
+            x2 = max(0, x2); y2 = max(0, y2)
 
             person_frame = frame[y1:y2, x1:x2]
             if person_frame.size == 0:
                 continue
 
-            keypoints = self.pose_estimator.extract_keypoints(frame)
+            try:
+                keypoints = self.pose_estimator.extract_keypoints(person_frame)
+            except Exception as e:
+                logger.error(f"Pose error: {e}")
+                keypoints = None
+
             if keypoints is None:
-                # No pose this frame for this person — skip
                 continue
 
-            annotated_frame = self.pose_estimator.draw_pose(annotated_frame)
+            if not pose_drawn:
+                try:
+                    annotated_frame = self.pose_estimator.draw_pose(annotated_frame)
+                    pose_drawn = True
+                except Exception:
+                    pass
 
             keypoints_flat = keypoints[:, :3].flatten()
-            self.keypoint_buffer.append(keypoints_flat)
-            if len(self.keypoint_buffer) > self.config.SEQUENCE_LENGTH * 2:
-                self.keypoint_buffer = self.keypoint_buffer[-self.config.SEQUENCE_LENGTH:]
+            buffer = self.keypoint_buffers[track_id]
+            buffer.append(keypoints_flat)
 
-            if len(self.keypoint_buffer) < self.config.SEQUENCE_LENGTH:
+            if len(buffer) < self.config.SEQUENCE_LENGTH:
                 result['activity'] = 'Collecting data...'
                 result['confidence'] = 0.0
                 continue
 
+            seq = list(buffer)[-self.config.SEQUENCE_LENGTH:]
+
             try:
-                activity, confidence = self.activity_recognizer.predict_activity(
-                    self.keypoint_buffer
-                )
+                activity, confidence = self.activity_recognizer.predict_activity(seq)
             except Exception as e:
                 logger.error(f"Activity predict error: {e}")
                 continue
@@ -262,7 +272,6 @@ class ChildSafetyMonitor:
             result['activity'] = activity or 'Unknown'
             result['confidence'] = confidence
 
-            # ---- Safety check scoped to THIS person ----
             try:
                 safety_result = self.safety_engine.check_safety(
                     activity=activity,
@@ -275,15 +284,14 @@ class ChildSafetyMonitor:
                 logger.error(f"Safety check error: {e}")
                 continue
 
-            # Aggregate: latest unsafe detection wins for top-level status
             if not safety_result.get('safe', True) or result['safe']:
                 result['safe']     = safety_result.get('safe', True)
                 result['message']  = safety_result.get('message', 'All safe')
                 result['severity'] = safety_result.get('severity', 'low')
                 result['alert']    = safety_result.get('alert')
 
-            if not safety_result.get('safe', True) and \
-               safety_result.get('alert_generated', False):
+            if (not safety_result.get('safe', True)
+                    and safety_result.get('alert_generated', False)):
                 try:
                     alert_info = self.alert_system.generate_alert(
                         message=safety_result.get('message', 'Unsafe activity'),
@@ -301,11 +309,9 @@ class ChildSafetyMonitor:
             result['activity'],
             result['confidence'],
             result['safe'],
-            self.alerts[-5:] if self.alerts else []
+            list(self.alerts)[-5:]
         )
-
         annotated_frame = self.tracker.draw_tracks(annotated_frame)
-
         self.visualizer.fps = self.fps
 
         if self.frame_count % 30 == 0:
@@ -315,14 +321,15 @@ class ChildSafetyMonitor:
 
     def _save_frame(self, frame):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        os.makedirs('captures', exist_ok=True)
-        filename = f"captures/capture_{timestamp}.jpg"
+        os.makedirs(self.config.CAPTURES_DIR, exist_ok=True)
+        filename = os.path.join(self.config.CAPTURES_DIR,
+                                f"capture_{timestamp}.jpg")
         cv2.imwrite(filename, frame)
         logger.info(f"Frame saved as {filename}")
 
     def _reset_state(self):
-        self.keypoint_buffer = []
-        self.alerts = []
+        self.keypoint_buffers.clear()
+        self.alerts.clear()
         self.current_activity = None
         self.current_confidence = 0.0
         self.is_safe = True
@@ -338,16 +345,12 @@ class ChildSafetyMonitor:
     def cleanup(self):
         logger.info("Cleaning up...")
         self.running = False
-
         if self.cap:
             self.cap.release()
-
         if self.video_writer:
             self.video_writer.release()
-
         cv2.destroyAllWindows()
         self.perf_monitor.stop_monitoring()
-
         logger.info("System stopped.")
 
         stats = self.alert_system.get_alert_statistics()
@@ -381,14 +384,12 @@ class ChildSafetyMonitor:
         data = np.load(data_path)
         X = data['X']
         y = data['y']
-
         logger.info(f"Data shape: {X.shape}, labels: {y.shape}")
 
         from sklearn.model_selection import train_test_split
         X_train, X_val, y_train, y_val = train_test_split(
             X, y, test_size=0.2, random_state=42, stratify=y
         )
-
         logger.info(f"Training set: {X_train.shape[0]} samples")
         logger.info(f"Validation set: {X_val.shape[0]} samples")
 
@@ -406,10 +407,8 @@ class ChildSafetyMonitor:
         logger.info("\nTraining completed!")
         logger.info(f"Final training accuracy: {history['accuracy'][-1]:.2f}%")
         logger.info(f"Final validation accuracy: {history['val_accuracy'][-1]:.2f}%")
-
         if save_path:
             logger.info(f"Model saved to {save_path}")
-
         return history
 
 
@@ -435,16 +434,15 @@ def main():
         import json
         with open(args.config, 'r') as f:
             custom_config = json.load(f)
-            for key, value in custom_config.items():
-                if hasattr(config, key):
-                    setattr(config, key, value)
+        for key, value in custom_config.items():
+            if hasattr(config, key):
+                setattr(config, key, value)
+        config.validate()
 
     monitor = ChildSafetyMonitor(config)
-
     if args.train:
         monitor.train_from_data(args.data)
         return
-
     monitor.start(
         camera_id=args.camera,
         save_video=args.save_video,
