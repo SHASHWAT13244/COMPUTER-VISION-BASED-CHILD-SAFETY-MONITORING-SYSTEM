@@ -27,9 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class DataPreparator:
-    """
-    Prepare training data from videos
-    """
+    """Prepare training data from videos."""
 
     def __init__(self, sequence_length=30, num_keypoints=33, min_detection_confidence=0.5):
         self.sequence_length = sequence_length
@@ -46,7 +44,6 @@ class DataPreparator:
 
         self.activities = list(Config.ACTIVITY_CLASSES)
 
-    # ---- Context manager so `pose` is always released ----
     def __enter__(self):
         return self
 
@@ -60,9 +57,7 @@ class DataPreparator:
             pass
 
     def extract_sequences_from_video(self, video_path):
-        """Extract pose sequences from a video file"""
         cap = cv2.VideoCapture(video_path)
-
         if not cap.isOpened():
             logger.error(f"Could not open video: {video_path}")
             return []
@@ -103,12 +98,10 @@ class DataPreparator:
 
         logger.info(f"  Processed {frame_count} frames, {success_count} with pose, "
                     f"extracted {len(sequences)} sequences")
-
         return sequences
 
     def prepare_data_from_videos(self, data_dir='data/activities',
                                  output_path='data/training_data.npz'):
-        """Prepare training data from videos in directories"""
         X_data = []
         y_data = []
 
@@ -142,7 +135,6 @@ class DataPreparator:
             logger.info(f"   Found {len(video_files)} video(s)")
 
             activity_sequences = 0
-
             for video_file in tqdm(video_files, desc=f"   Processing {activity}"):
                 sequences = self.extract_sequences_from_video(str(video_file))
                 for seq in sequences:
@@ -184,7 +176,6 @@ class DataPreparator:
             'num_keypoints': self.num_keypoints,
             'feature_shape': list(X_data.shape[1:]),
         }
-
         metadata_path = output_path.with_suffix('.json')
         with open(metadata_path, 'w') as f:
             json.dump(metadata, f, indent=2)
@@ -193,7 +184,6 @@ class DataPreparator:
         return X_data, y_data
 
     def create_directory_structure(self, data_dir='data/activities'):
-        """Create the directory structure for training data"""
         data_path = Path(data_dir)
         data_path.mkdir(parents=True, exist_ok=True)
 
@@ -242,7 +232,6 @@ Created: {}
 
     def generate_synthetic_data(self, num_samples=100,
                                 output_path='data/training_data_synthetic.npz'):
-        """Generate synthetic training data for testing."""
         logger.info("\n" + "=" * 60)
         logger.info("GENERATING SYNTHETIC DATA")
         logger.info("=" * 60)
@@ -252,7 +241,6 @@ Created: {}
 
         logger.info(f"Generating {num_samples} synthetic sequences per class...")
 
-        # MediaPipe landmark indices (x = idx*3, y = idx*3+1, z = idx*3+2)
         NOSE_X        = 0 * 3
         L_ANKLE_X     = 27 * 3
         R_ANKLE_X     = 28 * 3
@@ -272,21 +260,17 @@ Created: {}
                         sequence[i, NOSE_X]       += 0.10 * np.sin(i * 0.2)
                         sequence[i, L_ANKLE_X]    += 0.10 * np.sin(i * 0.2 + 1)
                         sequence[i, R_ANKLE_X]    += 0.10 * np.sin(i * 0.2 + 2)
-
                 elif activity == 'running':
                     for i in range(self.sequence_length):
                         sequence[i, NOSE_X]       += 0.20 * np.sin(i * 0.4)
                         sequence[i, L_ANKLE_X]    += 0.20 * np.sin(i * 0.4 + 1)
                         sequence[i, R_ANKLE_X]    += 0.20 * np.sin(i * 0.4 + 2)
-
                 elif activity == 'sitting':
                     for i in range(self.sequence_length):
-                        # Hips and knees at similar height
                         sequence[i, L_HIP_Y]   = 0.5
                         sequence[i, R_HIP_Y]   = 0.5
                         sequence[i, L_KNEE_Y]  = 0.5
                         sequence[i, R_KNEE_Y]  = 0.5
-
                 elif activity == 'falling':
                     for i in range(self.sequence_length):
                         decay = 0.02 * i
@@ -294,7 +278,6 @@ Created: {}
                         sequence[i, R_SHOULDER_Y] -= decay
                         sequence[i, L_HIP_Y]      -= decay
                         sequence[i, R_HIP_Y]      -= decay
-
                 elif activity == 'climbing':
                     for i in range(self.sequence_length):
                         growth = 0.015 * i
@@ -315,11 +298,10 @@ Created: {}
 
         logger.info(f"\n✅ Synthetic data saved to {output_path}")
         logger.info(f"   Total samples: {len(X_data)}")
-
         return X_data, y_data
 
     def preview_data(self, data_path='data/training_data.npz', num_samples=5):
-        """Preview the prepared data"""
+        """Preview the prepared data (safe on empty datasets)."""
         if not os.path.exists(data_path):
             logger.error(f"Data not found: {data_path}")
             return
@@ -335,26 +317,31 @@ Created: {}
         logger.info(f"Feature shape: {X.shape}")
         logger.info(f"Labels shape: {y.shape}")
 
-        logger.info(f"\nRandom samples:")
-        indices = np.random.choice(len(X), min(num_samples, len(X)), replace=False)
+        if len(X) == 0:
+            logger.warning("Empty dataset — nothing to preview.")
+            return
+
+        logger.info("\nRandom samples:")
+        n = min(num_samples, len(X))
+        indices = np.random.choice(len(X), n, replace=False)
 
         for idx in indices:
-            activity = self.activities[y[idx]]
+            activity = (self.activities[y[idx]]
+                        if y[idx] < len(self.activities) else 'unknown')
             logger.info(f"\n  Sample {idx}:")
             logger.info(f"    Activity: {activity}")
             logger.info(f"    Sequence shape: {X[idx].shape}")
             logger.info(f"    Min: {X[idx].min():.3f}, Max: {X[idx].max():.3f}")
             logger.info(f"    Mean: {X[idx].mean():.3f}, Std: {X[idx].std():.3f}")
 
-        logger.info(f"\nClass distribution:")
+        logger.info("\nClass distribution:")
         for idx, activity in enumerate(self.activities):
             count = int(np.sum(y == idx))
-            percentage = 100 * count / len(y) if len(y) else 0
+            percentage = 100 * count / len(y) if len(y) else 0.0
             logger.info(f"  {activity}: {count} ({percentage:.1f}%)")
 
 
 def main():
-    """Main function"""
     parser = argparse.ArgumentParser(
         description='Prepare training data for child safety monitoring'
     )
@@ -380,18 +367,15 @@ def main():
         if args.create_dirs:
             preparator.create_directory_structure(args.data_dir)
             return
-
         if args.synthetic:
             preparator.generate_synthetic_data(
                 num_samples=args.synthetic,
                 output_path='data/training_data_synthetic.npz'
             )
             return
-
         if args.preview:
             preparator.preview_data(args.preview)
             return
-
         if args.process:
             preparator.prepare_data_from_videos(
                 data_dir=args.data_dir,
