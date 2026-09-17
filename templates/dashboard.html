@@ -1,129 +1,556 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Child Safety Monitoring</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Child Safety Monitor</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+<style>
+  :root {
+    --safe:   #22c55e;
+    --warn:   #f59e0b;
+    --danger: #ef4444;
+    --dark:   #0f172a;
+    --card:   #1e293b;
+    --border: #334155;
+    --text:   #e2e8f0;
+    --muted:  #94a3b8;
+  }
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .navbar-brand { font-weight: 700; }
+  .card-dark {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .kpi-value  { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+  .kpi-label  { color: var(--muted); font-size: .78rem;
+                text-transform: uppercase; letter-spacing: .6px; }
+  .kpi-icon   { font-size: 1.5rem; opacity: .65; }
+  .chart-shell { position: relative; height: 280px; }
+  .chart-shell-sm { position: relative; height: 220px; }
+  .status-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px;
+    font-size: .78rem; font-weight: 600;
+  }
+  .status-pill.live  { background: rgba(34,197,94,.15);  color: var(--safe); }
+  .status-pill.idle  { background: rgba(100,116,139,.15); color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .table-dark th { color: var(--muted); font-weight: 500;
+                   text-transform: uppercase; font-size: .72rem;
+                   letter-spacing: .5px; border-color: var(--border); }
+  .table-dark td { border-color: var(--border); }
+  .table-dark tr:hover { background: rgba(255,255,255,.02); }
+  .legend-dot {
+    display: inline-block; width: 10px; height: 10px;
+    border-radius: 50%; margin-right: 6px;
+  }
+  footer { color: var(--muted); padding: 24px 0; text-align: center;
+           font-size: .8rem; }
+</style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-shield-alt"></i> Child Safety Monitor
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-chart-line"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('alerts_page') }}">
-                            <i class="fas fa-bell"></i> Alerts
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('about') }}">
-                            <i class="fas fa-info-circle"></i> About
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-4">
-        <h2><i class="fas fa-chart-line"></i> Monitoring Dashboard</h2>
-        
-        <div class="row mt-4">
-            <div class="col-md-3">
-                <div class="card stats-card bg-primary text-white">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-clock"></i> Status</h5>
-                        <h2 id="dashStatus" class="card-text">Inactive</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stats-card bg-success text-white">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-running"></i> Activity</h5>
-                        <h2 id="dashActivity" class="card-text">None</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stats-card bg-warning text-dark">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-shield-alt"></i> Safety</h5>
-                        <h2 id="dashSafety" class="card-text">✅ Safe</h2>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card stats-card bg-danger text-white">
-                    <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-bell"></i> Alerts</h5>
-                        <h2 id="dashAlerts" class="card-text">0</h2>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark"
+     style="background:#0b1220; border-bottom:1px solid #1e293b;">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="/">
+      <i class="bi bi-shield-check text-success"></i> Child Safety Monitor
+    </a>
+    <ul class="navbar-nav ms-auto flex-row gap-3">
+      <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-camera-video"></i> Live</a></li>
+      <li class="nav-item"><a class="nav-link active" href="/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+      <li class="nav-item"><a class="nav-link" href="/alerts"><i class="bi bi-bell"></i> Alerts</a></li>
+      <li class="nav-item"><a class="nav-link" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+      <li class="nav-item"><a class="nav-link" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
+    </ul>
+  </div>
+</nav>
 
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-activity"></i> Activity Distribution</h5>
-                    </div>
-                    <div class="card-body" id="activityChart">
-                        <canvas id="activityChartCanvas"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-history"></i> Alert Timeline</h5>
-                    </div>
-                    <div class="card-body" id="alertTimeline" style="max-height: 300px; overflow-y: auto;">
-                        <div class="text-muted text-center">No alerts to display</div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="container-fluid px-4 py-4">
 
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-image"></i> Recent Captures</h5>
-                    </div>
-                    <div class="card-body" id="captureGallery">
-                        <div class="row" id="galleryRow">
-                            <div class="col-12 text-muted text-center">No captures yet</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+  <!-- Header -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-0">Monitoring Dashboard</h3>
+      <div class="text-muted small">
+        Real-time activity, performance and safety analytics
+      </div>
     </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span id="status-pill" class="status-pill idle">
+        <span class="dot"></span> <span id="status-pill-text">Idle</span>
+      </span>
+      <button id="btn-refresh" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-arrow-clockwise"></i> Refresh
+      </button>
+      <a href="/" class="btn btn-sm btn-outline-info">
+        <i class="bi bi-camera-video"></i> Open Live View
+      </a>
+    </div>
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+  <!-- KPI Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Current Activity</div>
+            <div id="kpi-activity" class="kpi-value mt-1">—</div>
+            <div id="kpi-activity-conf" class="small text-muted">Confidence: 0%</div>
+          </div>
+          <i class="bi bi-activity kpi-icon text-info"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Safety Status</div>
+            <div id="kpi-safety" class="kpi-value mt-1 text-success">Safe</div>
+            <div id="kpi-safety-msg" class="small text-muted">All safe</div>
+          </div>
+          <i id="kpi-safety-icon" class="bi bi-shield-check kpi-icon text-success"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Total Alerts</div>
+            <div id="kpi-alerts" class="kpi-value mt-1">0</div>
+            <div id="kpi-alerts-sub" class="small text-muted">0 in the last minute</div>
+          </div>
+          <i class="bi bi-bell kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Performance</div>
+            <div id="kpi-fps" class="kpi-value mt-1">0.0</div>
+            <div id="kpi-fps-sub" class="small text-muted">Frames: 0</div>
+          </div>
+          <i class="bi bi-speedometer2 kpi-icon text-success"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row 1 -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-8">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="mb-0"><i class="bi bi-graph-up"></i> FPS Over Time</h6>
+          <span id="fps-live" class="badge bg-secondary">-- FPS</span>
+        </div>
+        <div class="chart-shell"><canvas id="chart-fps"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="card card-dark p-3 h-100">
+        <h6 class="mb-3"><i class="bi bi-pie-chart"></i> Activity Distribution</h6>
+        <div class="chart-shell-sm"><canvas id="chart-activity"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts row 2 -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="card card-dark p-3 h-100">
+        <h6 class="mb-3"><i class="bi bi-exclamation-triangle"></i> Alerts by Severity</h6>
+        <div class="chart-shell-sm"><canvas id="chart-severity"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card card-dark p-3 h-100">
+        <h6 class="mb-3"><i class="bi bi-cpu"></i> System Resources</h6>
+        <div class="row text-center">
+          <div class="col-4">
+            <div class="kpi-label">CPU</div>
+            <div id="cpu-value" class="kpi-value" style="font-size:1.4rem">0%</div>
+            <div class="progress-thin mt-2" style="height:6px;background:#334155">
+              <div id="cpu-bar" style="height:100%;width:0%;background:var(--safe);"></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="kpi-label">Memory</div>
+            <div id="mem-value" class="kpi-value" style="font-size:1.4rem">0%</div>
+            <div class="progress-thin mt-2" style="height:6px;background:#334155">
+              <div id="mem-bar" style="height:100%;width:0%;background:#3b82f6;"></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="kpi-label">Health</div>
+            <div id="health-value" class="kpi-value" style="font-size:1.4rem">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts table -->
+  <div class="card card-dark p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="mb-0"><i class="bi bi-list-check"></i> Recent Alerts</h6>
+      <div class="d-flex gap-2">
+        <button id="btn-export-csv" class="btn btn-sm btn-outline-light">
+          <i class="bi bi-filetype-csv"></i> CSV
+        </button>
+        <button id="btn-export-json" class="btn btn-sm btn-outline-light">
+          <i class="bi bi-filetype-json"></i> JSON
+        </button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-dark table-sm align-middle mb-0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Timestamp</th>
+            <th>Activity</th>
+            <th>Severity</th>
+            <th>Message</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody id="alerts-table-body">
+          <tr><td colspan="6" class="text-center text-muted py-4">No alerts recorded</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Child Safety Monitoring System &middot; SSIPMT Raipur &middot; Batch 2023–27
+</footer>
+
+<!-- Chart.js + Socket.IO -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  const COLORS = {
+    safe:   '#22c55e',
+    warn:   '#f59e0b',
+    danger: '#ef4444',
+    info:   '#3b82f6',
+    muted:  '#94a3b8',
+    purple: '#a855f7'
+  };
+  const ACTIVITY_COLORS = {
+    walking:  COLORS.safe,
+    running:  COLORS.warn,
+    sitting:  COLORS.info,
+    falling:  COLORS.danger,
+    climbing: COLORS.purple,
+    unknown:  COLORS.muted
+  };
+
+  Chart.defaults.color = '#e2e8f0';
+  Chart.defaults.borderColor = 'rgba(148,163,184,.15)';
+
+  // ---- FPS line chart ----
+  const fpsChart = new Chart($('chart-fps'), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'FPS',
+        data: [],
+        borderColor: COLORS.safe,
+        backgroundColor: 'rgba(34,197,94,.12)',
+        tension: 0.35,
+        fill: true,
+        pointRadius: 0,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: { beginAtZero: true, suggestedMax: 30,
+             grid: { color: 'rgba(148,163,184,.1)' } }
+      }
+    }
+  });
+
+  // ---- Activity doughnut ----
+  const activityChart = new Chart($('chart-activity'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Walking', 'Running', 'Sitting', 'Falling', 'Climbing'],
+      datasets: [{
+        data: [0, 0, 0, 0, 0],
+        backgroundColor: [
+          COLORS.safe, COLORS.warn, COLORS.info, COLORS.danger, COLORS.purple
+        ],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } }
+    }
+  });
+
+  // ---- Severity bar chart ----
+  const severityChart = new Chart($('chart-severity'), {
+    type: 'bar',
+    data: {
+      labels: ['Low', 'Medium', 'High'],
+      datasets: [{
+        label: 'Alerts',
+        data: [0, 0, 0],
+        backgroundColor: [COLORS.muted, COLORS.warn, COLORS.danger],
+        borderRadius: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 },
+             grid: { color: 'rgba(148,163,184,.1)' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // ---- state ----
+  const activityCounts = { walking: 0, running: 0, sitting: 0, falling: 0, climbing: 0 };
+  let alertsCache = [];
+  let isLive = false;
+  const MAX_POINTS = 60;
+
+  // ---- helpers ----
+  function setStatusPill(live) {
+    isLive = live;
+    const pill = $('status-pill');
+    pill.className = 'status-pill ' + (live ? 'live' : 'idle');
+    $('status-pill-text').textContent = live ? 'LIVE' : 'Idle';
+  }
+
+  function pushFps(v) {
+    const now = new Date();
+    const label = now.toLocaleTimeString([], { hour12: false });
+    fpsChart.data.labels.push(label);
+    fpsChart.data.datasets[0].data.push(v);
+    if (fpsChart.data.labels.length > MAX_POINTS) {
+      fpsChart.data.labels.shift();
+      fpsChart.data.datasets[0].data.shift();
+    }
+    fpsChart.update();
+  }
+
+  function bumpActivity(name) {
+    const key = (name || '').toLowerCase();
+    if (key in activityCounts) {
+      activityCounts[key] += 1;
+    }
+    activityChart.data.datasets[0].data = [
+      activityCounts.walking,
+      activityCounts.running,
+      activityCounts.sitting,
+      activityCounts.falling,
+      activityCounts.climbing,
+    ];
+    activityChart.update();
+  }
+
+  function renderAlertsTable() {
+    const tbody = $('alerts-table-body');
+    if (!alertsCache.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No alerts recorded</td></tr>';
+      return;
+    }
+    tbody.innerHTML = alertsCache.slice(-20).reverse().map(a => `
+      <tr>
+        <td>${a.id || ''}</td>
+        <td class="text-muted">${a.timestamp || ''}</td>
+        <td>
+          <span class="legend-dot" style="background:${
+            ACTIVITY_COLORS[(a.activity || 'unknown').toLowerCase()] || COLORS.muted
+          }"></span>
+          ${(a.activity || 'unknown').replace(/\b\w/g, c => c.toUpperCase())}
+        </td>
+        <td><span class="badge bg-${
+          a.severity === 'high' ? 'danger'
+          : a.severity === 'medium' ? 'warning'
+          : 'secondary'
+        }">${(a.severity || 'low').toUpperCase()}</span></td>
+        <td>${a.message || ''}</td>
+        <td class="text-muted small">${a.source || ''}</td>
+      </tr>
+    `).join('');
+  }
+
+  function updateSeverityChart() {
+    const counts = { low: 0, medium: 0, high: 0 };
+    alertsCache.forEach(a => {
+      const s = (a.severity || 'low').toLowerCase();
+      if (s in counts) counts[s] += 1;
+    });
+    severityChart.data.datasets[0].data = [counts.low, counts.medium, counts.high];
+    severityChart.update();
+  }
+
+  // ---- data refresh ----
+  async function refreshStatus() {
+    try {
+      const r = await fetch('/api/status');
+      const s = await r.json();
+
+      setStatusPill(!!s.monitoring_active);
+
+      const act = (s.activity || '—').toString();
+      $('kpi-activity').textContent = act.length > 12
+        ? act.slice(0, 12) + '…' : act;
+      $('kpi-activity-conf').textContent =
+        `Confidence: ${((s.confidence || 0) * 100).toFixed(1)}%`;
+
+      const safe = s.safe !== false;
+      $('kpi-safety').textContent = safe ? 'Safe' : 'UNSAFE';
+      $('kpi-safety').className = 'kpi-value mt-1 ' +
+        (safe ? 'text-success' : 'text-danger');
+      $('kpi-safety-msg').textContent = s.safe === false
+        ? (s.message || 'Unsafe activity detected') : 'All safe';
+      $('kpi-safety-icon').className = 'bi kpi-icon ' +
+        (safe ? 'bi-shield-check text-success' : 'bi-shield-exclamation text-danger');
+
+      $('kpi-fps').textContent = (s.fps || 0).toFixed(1);
+      $('kpi-fps-sub').textContent = `Frames: ${s.frame_count || 0}`;
+      $('fps-live').textContent = (s.fps || 0).toFixed(1) + ' FPS';
+      pushFps(s.fps || 0);
+
+      const alerts = Array.isArray(s.alerts) ? s.alerts : [];
+      if (alerts.length !== alertsCache.length) {
+        alertsCache = alerts;
+        renderAlertsTable();
+        updateSeverityChart();
+      }
+
+      $('kpi-alerts').textContent = alerts.length;
+      const oneMinAgo = Date.now() - 60_000;
+      const recent = alerts.filter(a => {
+        const t = Date.parse((a.timestamp || '').replace(' ', 'T'));
+        return !isNaN(t) && t >= oneMinAgo;
+      }).length;
+      $('kpi-alerts-sub').textContent = `${recent} in the last minute`;
+
+      if (s.statistics && s.statistics.by_severity) {
+        // Sync severity chart from server stats if richer
+        const bs = s.statistics.by_severity;
+        severityChart.data.datasets[0].data = [
+          bs.low || 0, bs.medium || 0, bs.high || 0
+        ];
+        severityChart.update();
+      }
+
+      // Health
+      if (s.health) {
+        const h = s.health;
+        $('health-value').textContent = (h.status || 'ok').toUpperCase();
+      }
+    } catch (e) {
+      console.error('status refresh failed', e);
+    }
+  }
+
+  async function refreshPerformance() {
+    try {
+      const r = await fetch('/api/performance');
+      const p = await r.json();
+      const summary = p.summary || {};
+      const cpu = summary.cpu_usage?.average ?? 0;
+      const mem = summary.memory_usage?.average ?? 0;
+      $('cpu-value').textContent = cpu.toFixed(0) + '%';
+      $('mem-value').textContent = mem.toFixed(0) + '%';
+      $('cpu-bar').style.width = Math.min(100, cpu) + '%';
+      $('mem-bar').style.width = Math.min(100, mem) + '%';
+    } catch (e) { /* ignore */ }
+  }
+
+  // ---- socket events ----
+  socket.on('connect', () => socket.emit('get_status'));
+
+  socket.on('status_update', (d) => {
+    if (typeof d.monitoring === 'boolean') setStatusPill(d.monitoring);
+    if (typeof d.monitoring_active === 'boolean') setStatusPill(d.monitoring_active);
+    if (d.activity && d.activity !== 'None' && d.activity !== 'Collecting data...') {
+      $('kpi-activity').textContent = d.activity;
+      $('kpi-activity-conf').textContent =
+        `Confidence: ${((d.confidence || 0) * 100).toFixed(1)}%`;
+      bumpActivity(d.activity);
+    }
+    if (typeof d.fps === 'number') {
+      $('fps-live').textContent = d.fps.toFixed(1) + ' FPS';
+      pushFps(d.fps);
+    }
+  });
+
+  socket.on('alert', (a) => {
+    alertsCache.push(a);
+    renderAlertsTable();
+    updateSeverityChart();
+    $('kpi-alerts').textContent = alertsCache.length;
+  });
+
+  // ---- exports ----
+  function download(filename, text, mime) {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  $('btn-export-csv').addEventListener('click', () => {
+    window.location = '/api/export/alerts?format=csv';
+  });
+  $('btn-export-json').addEventListener('click', () => {
+    window.location = '/api/export/alerts?format=json';
+  });
+  $('btn-refresh').addEventListener('click', () => {
+    refreshStatus();
+    refreshPerformance();
+  });
+
+  // ---- initial + periodic ----
+  refreshStatus();
+  refreshPerformance();
+  setInterval(refreshStatus, 2000);
+  setInterval(refreshPerformance, 5000);
+</script>
 </body>
 </html>
