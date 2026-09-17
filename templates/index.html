@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,8 @@
 
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}">
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
@@ -98,13 +100,64 @@
   .progress-thin { height: 6px; background: #334155; border-radius: 3px; overflow: hidden; }
   .progress-thin > div { height: 100%; background: var(--safe); transition: width .3s; }
 
+  /* ---------- inline analysis panel ---------- */
+  .analysis-panel img.preview {
+    width: 100%;
+    border-radius: 8px;
+    border: 1px solid #334155;
+    background: #0b1220;
+    display: block;
+  }
+  .analysis-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .analysis-grid .cell {
+    background: #0b1220;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  .analysis-grid .cell .k {
+    display: block;
+    font-size: .68rem;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: .5px;
+  }
+  .analysis-grid .cell .v { font-weight: 600; font-size: .95rem; }
+  .analysis-status {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: .85rem;
+    font-weight: 500;
+  }
+  .analysis-status.safe   { background: rgba(34,197,94,.15);  color: var(--safe);   border: 1px solid rgba(34,197,94,.35); }
+  .analysis-status.unsafe { background: rgba(239,68,68,.15);  color: var(--danger); border: 1px solid rgba(239,68,68,.4);  }
+  .analysis-status.warn   { background: rgba(245,158,11,.15); color: var(--warn);   border: 1px solid rgba(245,158,11,.35); }
+  .analysis-probs { margin-top: 10px; }
+  .prob-row {
+    display: flex; align-items: center; gap: 8px;
+    font-size: .78rem; margin-bottom: 4px;
+  }
+  .prob-row .name { width: 70px; color: #94a3b8; }
+  .prob-row .bar {
+    flex: 1; height: 8px; background: #334155; border-radius: 4px; overflow: hidden;
+  }
+  .prob-row .bar > div { height: 100%; background: var(--safe); }
+  .prob-row.predicted .name { color: var(--text); font-weight: 600; }
+  .prob-row.predicted .bar > div { background: #38bdf8; }
+
   footer { color: #64748b; font-size: .8rem; padding: 24px 0; text-align: center; }
 </style>
 </head>
 <body>
 
-<!-- NAVBAR -->
-<nav class="navbar navbar-expand-lg navbar-dark" style="background:#0b1220; border-bottom:1px solid #1e293b;">
+<nav class="navbar navbar-expand-lg navbar-dark"
+     style="background:#0b1220; border-bottom:1px solid #1e293b;">
   <div class="container">
     <a class="navbar-brand" href="/">
       <i class="bi bi-shield-check text-success"></i> Child Safety Monitor
@@ -122,7 +175,7 @@
 <div class="container py-4">
   <div class="row g-4">
 
-    <!-- LEFT: video + controls -->
+    <!-- LEFT -->
     <div class="col-lg-8">
       <div class="video-shell">
         <div class="video-overlay">
@@ -153,10 +206,9 @@
       </div>
     </div>
 
-    <!-- RIGHT: status panels -->
+    <!-- RIGHT -->
     <div class="col-lg-4">
 
-      <!-- Current Activity -->
       <div class="card card-dark p-3 mb-3">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <div class="stat-label">Current Activity</div>
@@ -173,7 +225,6 @@
         </div>
       </div>
 
-      <!-- Quick stats -->
       <div class="card card-dark p-3 mb-3">
         <div class="row text-center g-2">
           <div class="col-6">
@@ -191,6 +242,39 @@
           <div class="col-6">
             <div class="stat-label">Uptime</div>
             <div id="uptime" class="stat-value" style="font-size:1.1rem">0s</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image analysis result (inline) -->
+      <div class="card card-dark p-3 mb-3" id="analysis-card">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="stat-label"><i class="bi bi-image"></i> Image Analysis Result</div>
+          <button id="analysis-clear"
+                  class="btn btn-sm btn-outline-secondary py-0 px-2"
+                  style="font-size:.7rem;">clear</button>
+        </div>
+
+        <div id="analysis-empty" class="alert-empty">Upload an image to analyze</div>
+
+        <div id="analysis-body" class="d-none">
+          <div class="analysis-grid">
+            <div class="cell"><span class="k">Activity</span><span class="v" id="an-activity">—</span></div>
+            <div class="cell"><span class="k">Confidence</span><span class="v" id="an-confidence">—</span></div>
+            <div class="cell"><span class="k">Pose detected</span><span class="v" id="an-pose">—</span></div>
+            <div class="cell"><span class="k">Detections</span><span class="v" id="an-detections">—</span></div>
+          </div>
+
+          <div id="an-status" class="analysis-status safe">All safe</div>
+
+          <div id="an-probs" class="analysis-probs d-none">
+            <div class="stat-label mb-1 mt-2">Activity probabilities</div>
+            <div id="an-probs-list"></div>
+          </div>
+
+          <div class="mt-3">
+            <div class="stat-label mb-1">Processed image</div>
+            <img id="an-image" class="preview" alt="Processed result">
           </div>
         </div>
       </div>
@@ -214,30 +298,41 @@
   Child Safety Monitoring System &middot; SSIPMT Raipur &middot; Batch 2023–27
 </footer>
 
-<!-- Socket.IO -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
   const socket = io({ transports: ['websocket', 'polling'] });
-
   const $ = (id) => document.getElementById(id);
+
   const els = {
-    video:      $('video-stream'),
-    statusDot:  $('status-dot'),
-    overlayTxt: $('overlay-text'),
-    btnStart:   $('btn-start'),
-    btnStop:    $('btn-stop'),
-    btnCapture: $('btn-capture'),
-    btnReset:   $('btn-reset'),
-    uploadInput:$('upload-input'),
-    activity:   $('activity-badge'),
+    video:         $('video-stream'),
+    statusDot:     $('status-dot'),
+    overlayTxt:    $('overlay-text'),
+    btnStart:      $('btn-start'),
+    btnStop:       $('btn-stop'),
+    btnCapture:    $('btn-capture'),
+    btnReset:      $('btn-reset'),
+    uploadInput:   $('upload-input'),
+    activity:      $('activity-badge'),
     confidenceTxt: $('confidence-text'),
     confidenceBar: $('confidence-bar'),
-    safetyVal:  $('safety-value'),
-    alertCount: $('alert-count'),
-    frameCount: $('frame-count'),
-    uptime:     $('uptime'),
-    fpsBadge:   $('fps-badge'),
-    alertsList: $('alerts-list'),
+    safetyVal:     $('safety-value'),
+    alertCount:    $('alert-count'),
+    frameCount:    $('frame-count'),
+    uptime:        $('uptime'),
+    fpsBadge:      $('fps-badge'),
+    alertsList:    $('alerts-list'),
+
+    anEmpty:       $('analysis-empty'),
+    anBody:        $('analysis-body'),
+    anActivity:    $('an-activity'),
+    anConfidence:  $('an-confidence'),
+    anPose:        $('an-pose'),
+    anDetections:  $('an-detections'),
+    anStatus:      $('an-status'),
+    anProbs:       $('an-probs'),
+    anProbsList:   $('an-probs-list'),
+    anImage:       $('an-image'),
+    anClear:       $('analysis-clear'),
   };
 
   let isMonitoring = false;
@@ -245,7 +340,7 @@
   let startTimestamp = null;
   let localAlerts = [];
 
-  // ---- control buttons ----
+  // ---------- control buttons ----------
   els.btnStart.addEventListener('click', async () => {
     try {
       const r = await fetch('/api/start', { method: 'POST' });
@@ -284,47 +379,113 @@
     } catch (e) { alert('Error: ' + e); }
   });
 
+  // ---------- UPLOAD — inline render, no popup ----------
   els.uploadInput.addEventListener('change', async (ev) => {
     const file = ev.target.files[0];
     if (!file) return;
+
+    showAnalysisLoading(file.name);
+
     const fd = new FormData();
     fd.append('image', file);
+
     try {
       const r = await fetch('/api/upload', { method: 'POST', body: fd });
       const j = await r.json();
-      if (j.error) { alert(j.error); return; }
-      const res = j.result || {};
-      if (res.processed_image) {
-        openImagePreview(res.processed_image, res);
-      }
-    } catch (e) { alert('Upload failed: ' + e); }
-    ev.target.value = '';
+      if (j.error) { showAnalysisError(j.error); return; }
+      renderAnalysis(j.result || {}, j.probabilities || null);
+    } catch (e) {
+      showAnalysisError('Upload failed: ' + e.message);
+    } finally {
+      ev.target.value = '';
+    }
   });
 
-  function openImagePreview(b64, res) {
-    const w = window.open('', '_blank', 'width=900,height=700');
-    w.document.write(`
-      <html><head><title>Analysis Result</title>
-      <style>
-        body{margin:0;background:#0f172a;color:#e2e8f0;font-family:system-ui;padding:16px}
-        img{max-width:100%;border-radius:8px}
-        .row{margin-top:12px;font-size:1.05rem}
-        .k{color:#94a3b8;margin-right:8px}
-      </style></head><body>
-        <img src="data:image/jpeg;base64,${b64}">
-        <div class="row"><span class="k">Activity:</span> ${res.activity || 'N/A'}</div>
-        <div class="row"><span class="k">Confidence:</span> ${((res.confidence || 0) * 100).toFixed(1)}%</div>
-        <div class="row"><span class="k">Safety:</span> ${res.safe ? '✅ Safe' : '⚠️ Unsafe'}</div>
-        <div class="row"><span class="k">Message:</span> ${res.message || ''}</div>
-      </body></html>
-    `);
+  els.anClear.addEventListener('click', () => {
+    els.anBody.classList.add('d-none');
+    els.anEmpty.classList.remove('d-none');
+    els.anImage.removeAttribute('src');
+  });
+
+  function showAnalysisLoading(name) {
+    els.anEmpty.classList.add('d-none');
+    els.anBody.classList.remove('d-none');
+    els.anActivity.textContent    = '…';
+    els.anConfidence.textContent  = '…';
+    els.anPose.textContent        = '…';
+    els.anDetections.textContent  = '…';
+    els.anStatus.className        = 'analysis-status warn';
+    els.anStatus.textContent      = `Analyzing “${name}”…`;
+    els.anProbs.classList.add('d-none');
+    els.anImage.removeAttribute('src');
   }
 
-  // ---- monitoring state ----
+  function showAnalysisError(msg) {
+    els.anEmpty.classList.add('d-none');
+    els.anBody.classList.remove('d-none');
+    els.anActivity.textContent    = '—';
+    els.anConfidence.textContent  = '—';
+    els.anPose.textContent        = '—';
+    els.anDetections.textContent  = '—';
+    els.anStatus.className        = 'analysis-status unsafe';
+    els.anStatus.textContent      = 'Error: ' + msg;
+    els.anProbs.classList.add('d-none');
+    els.anImage.removeAttribute('src');
+  }
+
+  function renderAnalysis(res, probs) {
+    const activity   = (res.activity || 'None').toString();
+    const confidence = Number(res.confidence || 0);
+    const safe       = res.safe !== false;
+
+    els.anEmpty.classList.add('d-none');
+    els.anBody.classList.remove('d-none');
+
+    els.anActivity.textContent   = activity;
+    els.anConfidence.textContent = (confidence * 100).toFixed(1) + '%';
+    els.anPose.textContent       = res.pose_detected ? 'Yes' : 'No';
+    els.anDetections.textContent = (res.detections || []).length;
+
+    if (!safe) {
+      els.anStatus.className   = 'analysis-status unsafe';
+      els.anStatus.textContent = '⚠️ ' + (res.message || 'Unsafe activity detected');
+    } else if (res.message && res.message !== 'All safe') {
+      els.anStatus.className   = 'analysis-status warn';
+      els.anStatus.textContent = res.message;
+    } else {
+      els.anStatus.className   = 'analysis-status safe';
+      els.anStatus.textContent = '✅ ' + (res.message || 'All safe');
+    }
+
+    if (probs && typeof probs === 'object' && Object.keys(probs).length) {
+      const predicted = activity.toLowerCase();
+      const sorted = Object.entries(probs).sort((a, b) => b[1] - a[1]);
+      els.anProbsList.innerHTML = sorted.map(([name, p]) => {
+        const pct = Math.round((p || 0) * 100);
+        const isPred = name.toLowerCase() === predicted;
+        return `<div class="prob-row ${isPred ? 'predicted' : ''}">
+          <span class="name">${name}</span>
+          <span class="bar"><div style="width:${pct}%"></div></span>
+          <span>${pct}%</span>
+        </div>`;
+      }).join('');
+      els.anProbs.classList.remove('d-none');
+    } else {
+      els.anProbs.classList.add('d-none');
+    }
+
+    if (res.processed_image) {
+      els.anImage.src = 'data:image/jpeg;base64,' + res.processed_image;
+    } else {
+      els.anImage.removeAttribute('src');
+    }
+  }
+
+  // ---------- monitoring state ----------
   function setMonitoring(on) {
     isMonitoring = on;
     if (on) {
-      els.video.src = `/video_feed?t=${Date.now()}`;   // cache-buster
+      els.video.src = `/video_feed?t=${Date.now()}`;
       els.btnStart.disabled = true;
       els.btnStop.disabled = false;
       els.statusDot.className = 'dot live';
@@ -358,8 +519,7 @@
       : (m ? `${m}m ${sec}s` : `${sec}s`);
   }
 
-  // ---- activity badge coloring ----
-  const UNSAFE = ['falling', 'climbing'];
+  const UNSAFE  = ['falling', 'climbing'];
   const CAUTION = ['running'];
 
   function updateActivity(activity, confidence, safe) {
@@ -383,7 +543,7 @@
       els.alertsList.innerHTML = '<div class="alert-empty">No alerts yet</div>';
       return;
     }
-    const items = localAlerts.slice(-5).reverse().map(a => {
+    els.alertsList.innerHTML = localAlerts.slice(-5).reverse().map(a => {
       const sev = (a.severity || 'high').toLowerCase();
       return `<div class="alert-item severity-${sev}">
         <div class="d-flex justify-content-between">
@@ -393,10 +553,9 @@
         <div>${a.message || ''}</div>
       </div>`;
     }).join('');
-    els.alertsList.innerHTML = items;
   }
 
-  // ---- socket events ----
+  // ---------- socket ----------
   socket.on('connect', () => {
     console.log('Socket connected');
     socket.emit('get_status');
@@ -431,7 +590,6 @@
     playAlertBeep();
   });
 
-  // Short beep using WebAudio (no file needed)
   function playAlertBeep() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -446,7 +604,7 @@
     } catch (e) { /* ignore */ }
   }
 
-  // ---- poll status every 5 s as fallback ----
+  // ---------- poll fallback ----------
   setInterval(async () => {
     try {
       const r = await fetch('/api/status');
