@@ -1,338 +1,179 @@
 # utils/alert.py
 """
-Alert System for Child Safety Monitoring
-Generates and manages alerts for unsafe events
+Basic alert system: desktop popup + sound + local log.
+Used as a fallback when the advanced alert system isn't configured.
 """
 
-import datetime
-import json
 import os
-import time
 import logging
-from collections import defaultdict
-from threading import Lock
+import threading
+import time
+import json
+from datetime import datetime
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Optional dependencies — degrade gracefully if missing
+try:
+    import playsound
+    HAS_PLAYSOUND = True
+except Exception:
+    HAS_PLAYSOUND = False
+
+try:
+    from plyer import notification as plyer_notification
+    HAS_PLYER = True
+except Exception:
+    HAS_PLYER = False
 
 
 class AlertSystem:
     """
-    Alert system for generating and managing alerts
+    Basic alert system with desktop notification, optional sound,
+    and local logging. Thread-safe and rate-limited.
     """
-    
-    def __init__(self, sound_enabled=True, display_enabled=True, log_enabled=True,
-                 alert_file='alert_log.json', max_alerts=1000):
-        """
-        Initialize the alert system
-        
-        Args:
-            sound_enabled: Whether to play sound
-            display_enabled: Whether to display alerts
-            log_enabled: Whether to log alerts
-            alert_file: Path to log file
-            max_alerts: Maximum alerts to keep in memory
-        """
-        self.sound_enabled = sound_enabled
+
+    def __init__(self, sound_enabled=True, display_enabled=True,
+                 log_enabled=True,
+                 log_file='alerts/alert_log.jsonl',
+                 sound_file='assets/alert.wav',
+                 cooldown_seconds=5,
+                 max_alerts_per_minute=10):
+        self.sound_enabled   = sound_enabled
         self.display_enabled = display_enabled
-        self.log_enabled = log_enabled
-        self.alert_file = alert_file
-        self.max_alerts = max_alerts
-        
-        self.alert_log = []
-        self.alert_count = 0
-        self.lock = Lock()
-        
-        # Statistics
-        self.stats = {
-            'total': 0,
-            'by_severity': defaultdict(int),
-            'by_activity': defaultdict(int),
-            'by_hour': defaultdict(int),
-            'last_alert': None,
-            'first_alert': None
-        }
-        
-        # Load existing alerts
-        self._load_alerts()
-        
-        # Recent alerts for throttling
-        self.recent_alerts = []
-        self.throttle_window = 60  # seconds
-        self.max_per_window = 10
-        
-        logger.info("Alert system initialized")
-    
-    def generate_alert(self, message, severity='high', activity=None, bbox=None,
-                       location=None, image=None):
+        self.log_enabled     = log_enabled
+        self.log_file        = log_file
+        self.sound_file      = sound_file
+        self.cooldown_seconds = cooldown_seconds
+        self.max_alerts_per_minute = max_alerts_per_minute
+
+        # In-memory alert history
+        self.alerts      = []
+        self._lock       = threading.Lock()
+        self._last_alert_time   = 0.0
+        self._minute_window     = []   # timestamps for rate-limiting
+
+        os.makedirs(os.path.dirname(log_file) or '.', exist_ok=True)
+
+        if not HAS_PLYER:
+            logger.warning("plyer not installed — desktop popups disabled")
+        if not HAS_PLAYSOUND:
+            logger.info("playsound not installed — desktop sound disabled")
+
+    # ------------------------------------------------------------------
+    def generate_alert(self, message, severity='medium',
+                       activity='unknown', bbox=None, **extra):
         """
-        Generate an alert
-        
-        Args:
-            message: Alert message
-            severity: 'high', 'medium', or 'low'
-            activity: Activity that triggered the alert
-            bbox: Bounding box of the person
-            location: Location of the event
-            image: Optional image frame
-            
-        Returns:
-            dict: Alert information
+        Create and dispatch a new alert. Returns the alert dict.
+        Applies cooldown + rate-limit before dispatching.
         """
-        # Check throttling
-        if not self._check_throttle():
-            logger.debug("Alert throttled")
+        now = time.time()
+
+        # Cooldown check
+        if now - self._last_alert_time < self.cooldown_seconds:
+            logger.debug("Alert suppressed (cooldown)")
             return None
-        
-        timestamp = datetime.datetime.now()
-        
-        alert_info = {
-            'id': self.alert_count + 1,
-            'timestamp': timestamp.isoformat(),
-            'datetime': timestamp,
-            'message': message,
-            'severity': severity,
-            'activity': activity,
-            'location': location,
-            'bbox': bbox,
-            'image_saved': False
+
+        # Rate-limit check
+        with self._lock:
+            self._minute_window = [t for t in self._minute_window
+                                   if now - t < 60]
+            if len(self._minute_window) >= self.max_alerts_per_minute:
+                logger.warning("Alert suppressed (rate limit)")
+                return None
+            self._minute_window.append(now)
+
+        alert = {
+            'id':         len(self.alerts) + 1,
+            'timestamp':  datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'message':    str(message),
+            'severity':   str(severity).lower(),
+            'activity':   str(activity).lower(),
+            'bbox':       list(bbox) if bbox else None,
+            'source':     extra.get('source', 'realtime'),
         }
-        
-        self.alert_count += 1
-        
-        # Save image if provided
-        if image is not None and bbox is not None:
-            try:
-                self._save_alert_image(image, bbox, alert_info['id'])
-                alert_info['image_saved'] = True
-            except Exception as e:
-                logger.error(f"Error saving alert image: {e}")
-        
-        # Display alert
+        alert.update(extra)
+
+        with self._lock:
+            self.alerts.append(alert)
+            self._last_alert_time = now
+
+        # Dispatch
         if self.display_enabled:
-            self._display_alert(alert_info)
-        
-        # Play sound
+            self._show_desktop(alert)
         if self.sound_enabled:
             self._play_sound()
-        
-        # Log alert
         if self.log_enabled:
-            self._log_alert(alert_info)
-        
-        # Update statistics
-        with self.lock:
-            self.stats['total'] += 1
-            self.stats['by_severity'][severity] += 1
-            if activity:
-                self.stats['by_activity'][activity] += 1
-            
-            hour = timestamp.hour
-            self.stats['by_hour'][hour] += 1
-            
-            if self.stats['first_alert'] is None:
-                self.stats['first_alert'] = timestamp
-            self.stats['last_alert'] = timestamp
-        
-        # Add to recent alerts
-        self.recent_alerts.append({
-            'time': timestamp,
-            'type': activity or 'unknown'
-        })
-        
-        # Trim recent alerts
-        cutoff = timestamp - datetime.timedelta(seconds=self.throttle_window)
-        self.recent_alerts = [a for a in self.recent_alerts if a['time'] > cutoff]
-        
-        # Store alert
-        with self.lock:
-            self.alert_log.append(alert_info)
-            if len(self.alert_log) > self.max_alerts:
-                self.alert_log = self.alert_log[-self.max_alerts:]
-        
-        logger.info(f"Alert generated: {message} (ID: {alert_info['id']})")
-        
-        return alert_info
-    
-    def _display_alert(self, alert_info):
-        """Display alert in console"""
-        severity_emoji = {
-            'high': '🔴',
-            'medium': '🟡',
-            'low': '🟢'
-        }.get(alert_info['severity'], '⚪')
-        
-        print('\n' + '='*70)
-        print(f"{severity_emoji} ALERT #{alert_info['id']} - {alert_info['timestamp']}")
-        print('='*70)
-        print(f"Message: {alert_info['message']}")
-        print(f"Severity: {alert_info['severity'].upper()}")
-        if alert_info['activity']:
-            print(f"Activity: {alert_info['activity']}")
-        if alert_info['location']:
-            print(f"Location: {alert_info['location']}")
-        if alert_info['bbox']:
-            print(f"BBox: {alert_info['bbox']}")
-        if alert_info['image_saved']:
-            print(f"Image: Saved")
-        print('='*70 + '\n')
-    
+            self._log_alert(alert)
+
+        logger.info(f"🔔 Alert [{alert['severity']}]: {alert['message']}")
+        return alert
+
+    # ------------------------------------------------------------------
+    def _show_desktop(self, alert):
+        """Show a native desktop notification (best effort)."""
+        if not HAS_PLYER:
+            return
+        try:
+            title = {
+                'high':   '🚨 UNSAFE — Child Safety Alert',
+                'medium': '⚠️ Caution — Child Safety',
+                'low':    'ℹ️ Child Safety Notice',
+            }.get(alert['severity'], '🔔 Child Safety Alert')
+
+            plyer_notification.notify(
+                title=title,
+                message=alert['message'][:240],
+                app_name='Child Safety Monitor',
+                timeout=8,
+            )
+        except Exception as e:
+            logger.debug(f"Desktop notification failed: {e}")
+
+    # ------------------------------------------------------------------
     def _play_sound(self):
-        """Play alert sound"""
+        """Play the alert sound on a background thread."""
+        if not HAS_PLAYSOUND or not os.path.exists(self.sound_file):
+            return
         try:
-            # Try different methods for sound
-            try:
-                import winsound
-                winsound.Beep(1000, 300)
-                time.sleep(0.2)
-                winsound.Beep(1200, 300)
-            except ImportError:
-                # Try using system command
-                if os.name == 'posix':
-                    os.system('printf "\\a"')
-                else:
-                    import ctypes
-                    ctypes.windll.kernel32.Beep(1000, 300)
-                    time.sleep(0.2)
-                    ctypes.windll.kernel32.Beep(1200, 300)
+            threading.Thread(
+                target=lambda: playsound.playsound(self.sound_file,
+                                                   block=False),
+                daemon=True,
+            ).start()
         except Exception as e:
-            logger.debug(f"Could not play sound: {e}")
-    
-    def _log_alert(self, alert_info):
-        """Log alert to file"""
+            logger.debug(f"Sound playback failed: {e}")
+
+    # ------------------------------------------------------------------
+    def _log_alert(self, alert):
+        """Append one JSON line per alert to the log file."""
         try:
-            # Load existing log
-            log_data = []
-            if os.path.exists(self.alert_file):
-                try:
-                    with open(self.alert_file, 'r') as f:
-                        log_data = json.load(f)
-                except:
-                    pass
-            
-            # Add new alert
-            alert_copy = alert_info.copy()
-            alert_copy['datetime'] = alert_copy['datetime'].isoformat()
-            log_data.append(alert_copy)
-            
-            # Save
-            with open(self.alert_file, 'w') as f:
-                json.dump(log_data, f, indent=2)
-                
+            with open(self.log_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(alert, ensure_ascii=False) + '\n')
         except Exception as e:
-            logger.error(f"Error logging alert: {e}")
-    
-    def _save_alert_image(self, image, bbox, alert_id):
-        """Save alert image with bounding box"""
-        try:
-            import cv2
-            
-            # Create directory
-            alert_dir = 'alerts'
-            os.makedirs(alert_dir, exist_ok=True)
-            
-            # Crop and save
-            x1, y1, x2, y2 = bbox
-            cropped = image[y1:y2, x1:x2]
-            
-            if cropped.size > 0:
-                timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-                filename = f"{alert_dir}/alert_{alert_id}_{timestamp}.jpg"
-                cv2.imwrite(filename, cropped)
-                logger.debug(f"Alert image saved: {filename}")
-            
-        except Exception as e:
-            logger.error(f"Error saving alert image: {e}")
-    
-    def _check_throttle(self):
-        """Check if alert should be throttled"""
-        now = datetime.datetime.now()
-        cutoff = now - datetime.timedelta(seconds=self.throttle_window)
-        
-        # Count recent alerts
-        recent = [a for a in self.recent_alerts if a['time'] > cutoff]
-        
-        if len(recent) >= self.max_per_window:
-            return False
-        
-        # Check if too many of same type
-        if recent:
-            # Count alerts of same type in last 10 seconds
-            recent_cutoff = now - datetime.timedelta(seconds=10)
-            same_type = [a for a in recent if a['time'] > recent_cutoff]
-            
-            if len(same_type) >= 3:
-                return False
-        
-        return True
-    
-    def _load_alerts(self):
-        """Load alerts from file"""
-        try:
-            if os.path.exists(self.alert_file):
-                with open(self.alert_file, 'r') as f:
-                    log_data = json.load(f)
-                    for alert in log_data[-self.max_alerts:]:
-                        self.alert_log.append(alert)
-                        self.alert_count = max(self.alert_count, alert.get('id', 0))
-        except Exception as e:
-            logger.error(f"Error loading alerts: {e}")
-    
-    def get_recent_alerts(self, count=10):
-        """Get recent alerts"""
-        return self.alert_log[-count:] if self.alert_log else []
-    
-    def get_alert_by_id(self, alert_id):
-        """Get alert by ID"""
-        for alert in self.alert_log:
-            if alert.get('id') == alert_id:
-                return alert
-        return None
-    
+            logger.error(f"Failed to log alert: {e}")
+
+    # ------------------------------------------------------------------
     def get_alert_statistics(self):
-        """Get alert statistics"""
-        return {
-            'total': self.stats['total'],
-            'by_severity': dict(self.stats['by_severity']),
-            'by_activity': dict(self.stats['by_activity']),
-            'by_hour': dict(self.stats['by_hour']),
-            'first_alert': self.stats['first_alert'].isoformat() if self.stats['first_alert'] else None,
-            'last_alert': self.stats['last_alert'].isoformat() if self.stats['last_alert'] else None
+        """Return aggregate statistics over all alerts so far."""
+        with self._lock:
+            alerts = list(self.alerts)
+        stats = {
+            'total':       len(alerts),
+            'by_severity': {},
+            'by_activity': {},
+            'last_alert':  alerts[-1]['timestamp'] if alerts else None,
         }
-    
-    def clear_alerts(self):
-        """Clear all alerts"""
-        with self.lock:
-            self.alert_log = []
-            self.alert_count = 0
-            self.stats = {
-                'total': 0,
-                'by_severity': defaultdict(int),
-                'by_activity': defaultdict(int),
-                'by_hour': defaultdict(int),
-                'last_alert': None,
-                'first_alert': None
-            }
-            self.recent_alerts = []
-        
-        logger.info("All alerts cleared")
-    
-    def export_alerts(self, format='json'):
-        """Export alerts"""
-        if format == 'json':
-            return json.dumps(self.alert_log, indent=2, default=str)
-        elif format == 'csv':
-            import csv
-            import io
-            
-            output = io.StringIO()
-            if self.alert_log:
-                fieldnames = ['id', 'timestamp', 'severity', 'activity', 'message', 'location']
-                writer = csv.DictWriter(output, fieldnames=fieldnames)
-                writer.writeheader()
-                for alert in self.alert_log:
-                    row = {k: alert.get(k, '') for k in fieldnames}
-                    writer.writerow(row)
-            return output.getvalue()
-        else:
-            raise ValueError(f"Unsupported format: {format}")
+        for a in alerts:
+            sev = a.get('severity', 'unknown')
+            act = a.get('activity', 'unknown')
+            stats['by_severity'][sev] = stats['by_severity'].get(sev, 0) + 1
+            stats['by_activity'][act] = stats['by_activity'].get(act, 0) + 1
+        return stats
+
+    # ------------------------------------------------------------------
+    def clear(self):
+        """Reset the in-memory alert list."""
+        with self._lock:
+            self.alerts = []
+            self._minute_window = []
