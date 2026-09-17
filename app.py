@@ -230,12 +230,14 @@ class ChildSafetyMonitor:
             x1 = max(0, x1); y1 = max(0, y1)
             x2 = max(0, x2); y2 = max(0, y2)
 
-            person_frame = frame[y1:y2, x1:x2]
-            if person_frame.size == 0:
+            if y2 <= y1 or x2 <= x1:
                 continue
 
             try:
-                keypoints = self.pose_estimator.extract_keypoints(person_frame)
+                # Extract pose from the *full frame* so keypoints are in a
+                # consistent normalized coordinate space across the codebase
+                # (matches flask_app.py behaviour).
+                keypoints = self.pose_estimator.extract_keypoints(frame)
             except Exception as e:
                 logger.error(f"Pose error: {e}")
                 keypoints = None
@@ -267,6 +269,9 @@ class ChildSafetyMonitor:
                 logger.error(f"Activity predict error: {e}")
                 continue
 
+            if activity is None:
+                continue
+
             self.current_activity = activity or 'Unknown'
             self.current_confidence = confidence
             result['activity'] = activity or 'Unknown'
@@ -285,10 +290,11 @@ class ChildSafetyMonitor:
                 continue
 
             if not safety_result.get('safe', True) or result['safe']:
-                result['safe']     = safety_result.get('safe', True)
-                result['message']  = safety_result.get('message', 'All safe')
-                result['severity'] = safety_result.get('severity', 'low')
-                result['alert']    = safety_result.get('alert')
+                result['safe']            = safety_result.get('safe', True)
+                result['message']         = safety_result.get('message', 'All safe')
+                result['severity']        = safety_result.get('severity', 'low')
+                result['alert']           = safety_result.get('alert')
+                result['alert_generated'] = safety_result.get('alert_generated', False)
 
             if (not safety_result.get('safe', True)
                     and safety_result.get('alert_generated', False)):
@@ -299,8 +305,10 @@ class ChildSafetyMonitor:
                         activity=activity,
                         bbox=bbox,
                     )
-                    self.alerts.append(alert_info)
-                    result['alert_info'] = alert_info
+                    # generate_alert() returns None when throttled/cooldown-suppressed
+                    if alert_info is not None:
+                        self.alerts.append(alert_info)
+                        result['alert_info'] = alert_info
                 except Exception as e:
                     logger.error(f"Alert generation error: {e}")
 
