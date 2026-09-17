@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,6 +7,8 @@
 
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}">
 <link rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
 
@@ -47,11 +49,6 @@
   .status-pill.live  { background: rgba(34,197,94,.15);  color: var(--safe); }
   .status-pill.idle  { background: rgba(100,116,139,.15); color: var(--muted); }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-  .table-dark th { color: var(--muted); font-weight: 500;
-                   text-transform: uppercase; font-size: .72rem;
-                   letter-spacing: .5px; border-color: var(--border); }
-  .table-dark td { border-color: var(--border); }
-  .table-dark tr:hover { background: rgba(255,255,255,.02); }
   .legend-dot {
     display: inline-block; width: 10px; height: 10px;
     border-radius: 50%; margin-right: 6px;
@@ -62,7 +59,6 @@
 </head>
 <body>
 
-<!-- NAVBAR -->
 <nav class="navbar navbar-expand-lg navbar-dark"
      style="background:#0b1220; border-bottom:1px solid #1e293b;">
   <div class="container-fluid px-4">
@@ -81,13 +77,10 @@
 
 <div class="container-fluid px-4 py-4">
 
-  <!-- Header -->
   <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
     <div>
       <h3 class="mb-0">Monitoring Dashboard</h3>
-      <div class="text-muted small">
-        Real-time activity, performance and safety analytics
-      </div>
+      <div class="text-muted small">Real-time activity, performance and safety analytics</div>
     </div>
     <div class="d-flex gap-2 align-items-center">
       <span id="status-pill" class="status-pill idle">
@@ -102,7 +95,6 @@
     </div>
   </div>
 
-  <!-- KPI Row -->
   <div class="row g-3 mb-4">
     <div class="col-sm-6 col-xl-3">
       <div class="card card-dark p-3 h-100">
@@ -154,7 +146,6 @@
     </div>
   </div>
 
-  <!-- Charts row 1 -->
   <div class="row g-3 mb-4">
     <div class="col-lg-8">
       <div class="card card-dark p-3 h-100">
@@ -173,7 +164,6 @@
     </div>
   </div>
 
-  <!-- Charts row 2 -->
   <div class="row g-3 mb-4">
     <div class="col-lg-6">
       <div class="card card-dark p-3 h-100">
@@ -208,7 +198,6 @@
     </div>
   </div>
 
-  <!-- Alerts table -->
   <div class="card card-dark p-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h6 class="mb-0"><i class="bi bi-list-check"></i> Recent Alerts</h6>
@@ -246,7 +235,6 @@
   Child Safety Monitoring System &middot; SSIPMT Raipur &middot; Batch 2023–27
 </footer>
 
-<!-- Chart.js + Socket.IO -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script>
@@ -254,26 +242,17 @@
   const socket = io({ transports: ['websocket', 'polling'] });
 
   const COLORS = {
-    safe:   '#22c55e',
-    warn:   '#f59e0b',
-    danger: '#ef4444',
-    info:   '#3b82f6',
-    muted:  '#94a3b8',
-    purple: '#a855f7'
+    safe: '#22c55e', warn: '#f59e0b', danger: '#ef4444',
+    info: '#3b82f6', muted: '#94a3b8', purple: '#a855f7'
   };
   const ACTIVITY_COLORS = {
-    walking:  COLORS.safe,
-    running:  COLORS.warn,
-    sitting:  COLORS.info,
-    falling:  COLORS.danger,
-    climbing: COLORS.purple,
-    unknown:  COLORS.muted
+    walking: COLORS.safe, running: COLORS.warn, sitting: COLORS.info,
+    falling: COLORS.danger, climbing: COLORS.purple, unknown: COLORS.muted
   };
 
   Chart.defaults.color = '#e2e8f0';
   Chart.defaults.borderColor = 'rgba(148,163,184,.15)';
 
-  // ---- FPS line chart ----
   const fpsChart = new Chart($('chart-fps'), {
     type: 'line',
     data: {
@@ -283,16 +262,11 @@
         data: [],
         borderColor: COLORS.safe,
         backgroundColor: 'rgba(34,197,94,.12)',
-        tension: 0.35,
-        fill: true,
-        pointRadius: 0,
-        borderWidth: 2
+        tension: 0.35, fill: true, pointRadius: 0, borderWidth: 2
       }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false } },
       scales: {
         x: { display: false },
@@ -302,42 +276,35 @@
     }
   });
 
-  // ---- Activity doughnut ----
   const activityChart = new Chart($('chart-activity'), {
     type: 'doughnut',
     data: {
-      labels: ['Walking', 'Running', 'Sitting', 'Falling', 'Climbing'],
+      labels: ['Walking','Running','Sitting','Falling','Climbing'],
       datasets: [{
-        data: [0, 0, 0, 0, 0],
-        backgroundColor: [
-          COLORS.safe, COLORS.warn, COLORS.info, COLORS.danger, COLORS.purple
-        ],
+        data: [0,0,0,0,0],
+        backgroundColor: [COLORS.safe, COLORS.warn, COLORS.info, COLORS.danger, COLORS.purple],
         borderWidth: 0
       }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '62%',
+      responsive: true, maintainAspectRatio: false, cutout: '62%',
       plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } }
     }
   });
 
-  // ---- Severity bar chart ----
   const severityChart = new Chart($('chart-severity'), {
     type: 'bar',
     data: {
-      labels: ['Low', 'Medium', 'High'],
+      labels: ['Low','Medium','High'],
       datasets: [{
         label: 'Alerts',
-        data: [0, 0, 0],
+        data: [0,0,0],
         backgroundColor: [COLORS.muted, COLORS.warn, COLORS.danger],
         borderRadius: 6
       }]
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         y: { beginAtZero: true, ticks: { precision: 0 },
@@ -347,13 +314,11 @@
     }
   });
 
-  // ---- state ----
-  const activityCounts = { walking: 0, running: 0, sitting: 0, falling: 0, climbing: 0 };
+  const activityCounts = { walking:0, running:0, sitting:0, falling:0, climbing:0 };
   let alertsCache = [];
   let isLive = false;
   const MAX_POINTS = 60;
 
-  // ---- helpers ----
   function setStatusPill(live) {
     isLive = live;
     const pill = $('status-pill');
@@ -375,15 +340,10 @@
 
   function bumpActivity(name) {
     const key = (name || '').toLowerCase();
-    if (key in activityCounts) {
-      activityCounts[key] += 1;
-    }
+    if (key in activityCounts) activityCounts[key] += 1;
     activityChart.data.datasets[0].data = [
-      activityCounts.walking,
-      activityCounts.running,
-      activityCounts.sitting,
-      activityCounts.falling,
-      activityCounts.climbing,
+      activityCounts.walking, activityCounts.running, activityCounts.sitting,
+      activityCounts.falling, activityCounts.climbing
     ];
     activityChart.update();
   }
@@ -406,8 +366,7 @@
         </td>
         <td><span class="badge bg-${
           a.severity === 'high' ? 'danger'
-          : a.severity === 'medium' ? 'warning'
-          : 'secondary'
+          : a.severity === 'medium' ? 'warning' : 'secondary'
         }">${(a.severity || 'low').toUpperCase()}</span></td>
         <td>${a.message || ''}</td>
         <td class="text-muted small">${a.source || ''}</td>
@@ -416,7 +375,7 @@
   }
 
   function updateSeverityChart() {
-    const counts = { low: 0, medium: 0, high: 0 };
+    const counts = { low:0, medium:0, high:0 };
     alertsCache.forEach(a => {
       const s = (a.severity || 'low').toLowerCase();
       if (s in counts) counts[s] += 1;
@@ -425,7 +384,6 @@
     severityChart.update();
   }
 
-  // ---- data refresh ----
   async function refreshStatus() {
     try {
       const r = await fetch('/api/status');
@@ -434,8 +392,7 @@
       setStatusPill(!!s.monitoring_active);
 
       const act = (s.activity || '—').toString();
-      $('kpi-activity').textContent = act.length > 12
-        ? act.slice(0, 12) + '…' : act;
+      $('kpi-activity').textContent = act.length > 12 ? act.slice(0,12) + '…' : act;
       $('kpi-activity-conf').textContent =
         `Confidence: ${((s.confidence || 0) * 100).toFixed(1)}%`;
 
@@ -459,32 +416,16 @@
         renderAlertsTable();
         updateSeverityChart();
       }
-
       $('kpi-alerts').textContent = alerts.length;
-      const oneMinAgo = Date.now() - 60_000;
+      const oneMinAgo = Date.now() - 60000;
       const recent = alerts.filter(a => {
         const t = Date.parse((a.timestamp || '').replace(' ', 'T'));
         return !isNaN(t) && t >= oneMinAgo;
       }).length;
       $('kpi-alerts-sub').textContent = `${recent} in the last minute`;
 
-      if (s.statistics && s.statistics.by_severity) {
-        // Sync severity chart from server stats if richer
-        const bs = s.statistics.by_severity;
-        severityChart.data.datasets[0].data = [
-          bs.low || 0, bs.medium || 0, bs.high || 0
-        ];
-        severityChart.update();
-      }
-
-      // Health
-      if (s.health) {
-        const h = s.health;
-        $('health-value').textContent = (h.status || 'ok').toUpperCase();
-      }
-    } catch (e) {
-      console.error('status refresh failed', e);
-    }
+      if (s.health) $('health-value').textContent = (s.health.status || 'ok').toUpperCase();
+    } catch (e) { console.error('status refresh failed', e); }
   }
 
   async function refreshPerformance() {
@@ -498,10 +439,9 @@
       $('mem-value').textContent = mem.toFixed(0) + '%';
       $('cpu-bar').style.width = Math.min(100, cpu) + '%';
       $('mem-bar').style.width = Math.min(100, mem) + '%';
-    } catch (e) { /* ignore */ }
+    } catch (e) {}
   }
 
-  // ---- socket events ----
   socket.on('connect', () => socket.emit('get_status'));
 
   socket.on('status_update', (d) => {
@@ -526,15 +466,6 @@
     $('kpi-alerts').textContent = alertsCache.length;
   });
 
-  // ---- exports ----
-  function download(filename, text, mime) {
-    const blob = new Blob([text], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  }
-
   $('btn-export-csv').addEventListener('click', () => {
     window.location = '/api/export/alerts?format=csv';
   });
@@ -546,7 +477,6 @@
     refreshPerformance();
   });
 
-  // ---- initial + periodic ----
   refreshStatus();
   refreshPerformance();
   setInterval(refreshStatus, 2000);
