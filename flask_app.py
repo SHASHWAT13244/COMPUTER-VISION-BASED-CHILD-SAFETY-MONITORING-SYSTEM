@@ -162,6 +162,7 @@ def _empty_result():
         'message': 'All safe',
         'severity': 'low',
         'alert': None,
+        'alert_generated': False,
         'detections': [],
     }
 
@@ -254,10 +255,11 @@ def process_single_frame(frame):
             bbox=detections[0]['bbox'],
             frame_time=datetime.now(),
         )
-        result['safe']     = safety.get('safe', True)
-        result['message']  = safety.get('message', 'All safe')
-        result['severity'] = safety.get('severity', 'low')
-        result['alert']    = safety.get('alert')
+        result['safe']            = safety.get('safe', True)
+        result['message']         = safety.get('message', 'All safe')
+        result['severity']        = safety.get('severity', 'low')
+        result['alert']           = safety.get('alert')
+        result['alert_generated'] = safety.get('alert_generated', False)
     except Exception as e:
         logger.error(f"Safety check error: {e}")
 
@@ -298,6 +300,8 @@ def annotate_frame(frame, result):
         with _status_lock:
             fps = _current_status.get('fps', 0.0)
             last_alerts = list(_current_status.get('alerts', []))[-3:]
+        # Guard against None accidentally entering the deque
+        last_alerts = [a for a in last_alerts if a is not None]
         visualizer.fps = fps
         annotated = visualizer.draw_status(
             annotated,
@@ -460,7 +464,11 @@ def camera_reader_loop(cap):
                 _current_status['safe']       = result.get('safe', True)
                 _current_status['fps']        = fps
 
-                if result.get('alert') and not result.get('safe', True):
+                # Only create a *new* alert when the safety engine has
+                # actually decided it is time (rate-limit / cooldown aware).
+                if (result.get('alert')
+                        and not result.get('safe', True)
+                        and result.get('alert_generated', False)):
                     alert_info = {
                         'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                         'message': result.get('message', 'Unsafe behaviour detected'),
@@ -691,7 +699,7 @@ def get_status():
                 'frame_count': _current_status['frame_count'],
             }
         with _alerts_lock:
-            alerts_tail = list(_alerts_list[-10:])
+            alerts_tail = [a for a in list(_alerts_list[-10:]) if a is not None]
             alert_count = len(_alerts_list)
         with _reader_lock:
             is_active = monitoring_active
@@ -720,7 +728,7 @@ def get_alerts():
     limit    = request.args.get('limit', 100, type=int)
     severity = request.args.get('severity', None)
     with _alerts_lock:
-        alerts = list(_alerts_list)
+        alerts = [a for a in list(_alerts_list) if a is not None]
     if severity:
         alerts = [a for a in alerts if a.get('severity') == severity]
     return jsonify({'alerts': alerts[-limit:], 'total': len(alerts)})
@@ -873,6 +881,7 @@ def process_single_image_enhanced(frame):
             result['message']  = safety.get('message', 'All safe')
             result['severity'] = safety.get('severity', 'low')
             result['alert']    = safety.get('alert')
+            result['alert_generated'] = safety.get('alert_generated', False)
         else:
             result['message'] = (
                 f'Activity not recognized with sufficient confidence '
@@ -916,7 +925,9 @@ def upload_image():
                 _current_status['confidence'] = result.get('confidence', 0.0)
                 _current_status['safe']       = result.get('safe', True)
 
-            if not result.get('safe', True) and result.get('alert'):
+            if (not result.get('safe', True)
+                    and result.get('alert')
+                    and result.get('alert_generated', False)):
                 alert_info = {
                     'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     'message': result.get(
@@ -1033,7 +1044,7 @@ def export_alerts():
     fmt = request.args.get('format', 'json')
     try:
         with _alerts_lock:
-            alerts = list(_alerts_list)
+            alerts = [a for a in list(_alerts_list) if a is not None]
         if fmt == 'json':
             return jsonify({'alerts': alerts})
         if fmt == 'csv':
