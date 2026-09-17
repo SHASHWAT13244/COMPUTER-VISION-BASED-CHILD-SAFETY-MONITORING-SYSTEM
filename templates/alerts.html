@@ -1,130 +1,398 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Alerts - Child Safety Monitoring</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alerts — Child Safety Monitor</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+<style>
+  :root {
+    --safe:   #22c55e;
+    --warn:   #f59e0b;
+    --danger: #ef4444;
+    --dark:   #0f172a;
+    --card:   #1e293b;
+    --border: #334155;
+    --text:   #e2e8f0;
+    --muted:  #94a3b8;
+  }
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .navbar-brand { font-weight: 700; }
+  .card-dark {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .kpi-value { font-size: 1.8rem; font-weight: 700; line-height: 1.1; }
+  .kpi-label { color: var(--muted); font-size: .74rem;
+               text-transform: uppercase; letter-spacing: .6px; }
+  .kpi-icon  { font-size: 1.5rem; opacity: .65; }
+
+  .severity-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .4px;
+  }
+  .severity-pill.high   { background: rgba(239,68,68,.18);  color: var(--danger); }
+  .severity-pill.medium { background: rgba(245,158,11,.18); color: var(--warn); }
+  .severity-pill.low    { background: rgba(148,163,184,.18); color: var(--muted); }
+
+  .alert-row {
+    border-left: 4px solid transparent;
+    transition: background .15s;
+  }
+  .alert-row:hover { background: rgba(255,255,255,.02); }
+  .alert-row.sev-high   { border-color: var(--danger); }
+  .alert-row.sev-medium { border-color: var(--warn); }
+  .alert-row.sev-low    { border-color: var(--muted); }
+
+  .table-dark th {
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: .72rem;
+    letter-spacing: .5px;
+    border-color: var(--border);
+  }
+  .table-dark td { border-color: var(--border); }
+
+  .filter-btn.active {
+    background: rgba(59,130,246,.25) !important;
+    border-color: #3b82f6 !important;
+    color: #93c5fd !important;
+  }
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+  }
+  .empty-state i { font-size: 3rem; opacity: .35; display: block; margin-bottom: 12px; }
+  .pulse-live {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--safe);
+    display: inline-block;
+    box-shadow: 0 0 8px var(--safe);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50%     { opacity: .4; }
+  }
+  footer { color: var(--muted); padding: 24px 0; text-align: center;
+           font-size: .8rem; }
+</style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-shield-alt"></i> Child Safety Monitor
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-chart-line"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{{ url_for('alerts_page') }}">
-                            <i class="fas fa-bell"></i> Alerts
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('about') }}">
-                            <i class="fas fa-info-circle"></i> About
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-4">
-        <h2><i class="fas fa-bell"></i> Alert History</h2>
-        
-        <div class="row mt-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">All Alerts</h5>
-                        <div>
-                            <button class="btn btn-sm btn-primary" id="refreshAlerts">
-                                <i class="fas fa-sync"></i> Refresh
-                            </button>
-                            <button class="btn btn-sm btn-danger" id="clearAlerts">
-                                <i class="fas fa-trash"></i> Clear All
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover" id="alertTable">
-                                <thead>
-                                    <tr>
-                                        <th>#</th>
-                                        <th>Timestamp</th>
-                                        <th>Severity</th>
-                                        <th>Activity</th>
-                                        <th>Message</th>
-                                        <th>Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="alertTableBody">
-                                    <tr>
-                                        <td colspan="6" class="text-center text-muted">No alerts found</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    <div class="card-footer">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <span id="alertSummary">Total: 0 alerts</span>
-                            </div>
-                            <div class="col-md-6 text-end">
-                                <button class="btn btn-sm btn-outline-primary" id="exportAlerts">
-                                    <i class="fas fa-download"></i> Export CSV
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark"
+     style="background:#0b1220; border-bottom:1px solid #1e293b;">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="/">
+      <i class="bi bi-shield-check text-success"></i> Child Safety Monitor
+    </a>
+    <ul class="navbar-nav ms-auto flex-row gap-3">
+      <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-camera-video"></i> Live</a></li>
+      <li class="nav-item"><a class="nav-link" href="/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+      <li class="nav-item"><a class="nav-link active" href="/alerts"><i class="bi bi-bell"></i> Alerts</a></li>
+      <li class="nav-item"><a class="nav-link" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+      <li class="nav-item"><a class="nav-link" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
+    </ul>
+  </div>
+</nav>
 
-        <div class="row mt-4">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-chart-pie"></i> Alert Statistics</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="alertStatsChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5><i class="fas fa-exclamation-triangle"></i> Alert Severity Distribution</h5>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="severityChart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div class="container-fluid px-4 py-4">
+
+  <!-- Header -->
+  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="mb-0"><i class="bi bi-bell-fill text-warning"></i> Alert Log</h3>
+      <div class="text-muted small">All safety alerts generated during this session</div>
     </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge bg-secondary d-flex align-items-center gap-2"
+            style="padding:6px 12px;">
+        <span class="pulse-live"></span> Auto-refresh
+      </span>
+      <button id="btn-clear" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-trash"></i> Clear
+      </button>
+      <button id="btn-export-csv" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-filetype-csv"></i> CSV
+      </button>
+      <button id="btn-export-json" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-filetype-json"></i> JSON
+      </button>
+    </div>
+  </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/alerts.js') }}"></script>
+  <!-- KPI Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Total Alerts</div>
+            <div id="kpi-total" class="kpi-value mt-1">0</div>
+          </div>
+          <i class="bi bi-bell-fill kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">High Severity</div>
+            <div id="kpi-high" class="kpi-value mt-1 text-danger">0</div>
+          </div>
+          <i class="bi bi-exclamation-octagon-fill kpi-icon text-danger"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Medium Severity</div>
+            <div id="kpi-medium" class="kpi-value mt-1 text-warning">0</div>
+          </div>
+          <i class="bi bi-exclamation-triangle-fill kpi-icon text-warning"></i>
+        </div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card card-dark p-3 h-100">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="kpi-label">Last Alert</div>
+            <div id="kpi-last" class="kpi-value mt-1" style="font-size:1rem">—</div>
+          </div>
+          <i class="bi bi-clock-history kpi-icon text-info"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters + search -->
+  <div class="card card-dark p-3 mb-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-lg-6 d-flex flex-wrap gap-2">
+        <span class="text-muted small me-2 align-self-center">Filter:</span>
+        <button class="btn btn-sm btn-outline-light filter-btn active"
+                data-severity="all">All</button>
+        <button class="btn btn-sm btn-outline-danger filter-btn"
+                data-severity="high">High</button>
+        <button class="btn btn-sm btn-outline-warning filter-btn"
+                data-severity="medium">Medium</button>
+        <button class="btn btn-sm btn-outline-secondary filter-btn"
+                data-severity="low">Low</button>
+      </div>
+      <div class="col-lg-6">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-dark border-secondary text-muted">
+            <i class="bi bi-search"></i>
+          </span>
+          <input id="search-input" type="text" class="form-control bg-dark text-light border-secondary"
+                 placeholder="Search by activity or message…">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts table -->
+  <div class="card card-dark p-3">
+    <div class="table-responsive" style="max-height:600px; overflow-y:auto;">
+      <table class="table table-dark table-sm align-middle mb-0">
+        <thead class="sticky-top" style="background:#1e293b;">
+          <tr>
+            <th style="width:60px">#</th>
+            <th style="width:170px">Timestamp</th>
+            <th style="width:130px">Activity</th>
+            <th style="width:110px">Severity</th>
+            <th>Message</th>
+            <th style="width:120px">Source</th>
+          </tr>
+        </thead>
+        <tbody id="alerts-body">
+          <tr>
+            <td colspan="6">
+              <div class="empty-state">
+                <i class="bi bi-inbox"></i>
+                No alerts recorded yet.<br>
+                <span class="small">Alerts appear here automatically when the system
+                detects unsafe activity.</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Child Safety Monitoring System &middot; SSIPMT Raipur &middot; Batch 2023–27
+</footer>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  let allAlerts  = [];
+  let filterSev  = 'all';
+  let searchTerm = '';
+
+  const ACTIVITY_EMOJI = {
+    walking:  '🚶',
+    running:  '🏃',
+    sitting:  '🪑',
+    falling:  '💫',
+    climbing: '🧗',
+  };
+
+  function fmtActivity(a) {
+    const key = (a || 'unknown').toLowerCase();
+    const emoji = ACTIVITY_EMOJI[key] || '•';
+    return `${emoji} ${key.charAt(0).toUpperCase() + key.slice(1)}`;
+  }
+
+  function applyFilters() {
+    return allAlerts.filter(a => {
+      if (filterSev !== 'all' && (a.severity || 'low').toLowerCase() !== filterSev) return false;
+      if (searchTerm) {
+        const hay = ((a.activity || '') + ' ' + (a.message || '')).toLowerCase();
+        if (!hay.includes(searchTerm)) return false;
+      }
+      return true;
+    });
+  }
+
+  function render() {
+    const list = applyFilters();
+    const body = $('alerts-body');
+
+    if (!list.length) {
+      const msg = allAlerts.length
+        ? 'No alerts match the current filter.'
+        : 'No alerts recorded yet.';
+      body.innerHTML = `
+        <tr><td colspan="6">
+          <div class="empty-state">
+            <i class="bi bi-inbox"></i>
+            ${msg}
+          </div>
+        </td></tr>`;
+      return;
+    }
+
+    body.innerHTML = list.slice().reverse().map(a => {
+      const sev = (a.severity || 'low').toLowerCase();
+      return `
+        <tr class="alert-row sev-${sev}">
+          <td class="text-muted">${a.id || ''}</td>
+          <td class="text-muted small">${a.timestamp || ''}</td>
+          <td>${fmtActivity(a.activity)}</td>
+          <td><span class="severity-pill ${sev}">${sev.toUpperCase()}</span></td>
+          <td>${a.message || ''}</td>
+          <td class="text-muted small">${a.source || '—'}</td>
+        </tr>`;
+    }).join('');
+  }
+
+  function updateKpis() {
+    const total  = allAlerts.length;
+    const high   = allAlerts.filter(a => (a.severity || '').toLowerCase() === 'high').length;
+    const medium = allAlerts.filter(a => (a.severity || '').toLowerCase() === 'medium').length;
+    const last   = allAlerts.length ? allAlerts[allAlerts.length - 1].timestamp : '—';
+
+    $('kpi-total').textContent  = total;
+    $('kpi-high').textContent   = high;
+    $('kpi-medium').textContent = medium;
+    $('kpi-last').textContent   = last || '—';
+  }
+
+  async function fetchAlerts() {
+    try {
+      const r = await fetch('/api/alerts?limit=500');
+      const j = await r.json();
+      const incoming = Array.isArray(j.alerts) ? j.alerts : [];
+      // Only re-render if something changed
+      if (incoming.length !== allAlerts.length ||
+          (incoming.length && allAlerts.length &&
+           incoming[incoming.length - 1].id !== allAlerts[allAlerts.length - 1].id)) {
+        allAlerts = incoming;
+        render();
+        updateKpis();
+      }
+    } catch (e) {
+      console.error('fetch alerts failed', e);
+    }
+  }
+
+  // ---- filter buttons ----
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterSev = btn.dataset.severity;
+      render();
+    });
+  });
+
+  $('search-input').addEventListener('input', (e) => {
+    searchTerm = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  // ---- clear + export ----
+  $('btn-clear').addEventListener('click', async () => {
+    if (!confirm('Clear all alerts for this session?')) return;
+    try {
+      await fetch('/api/reset', { method: 'POST' });
+      allAlerts = [];
+      render();
+      updateKpis();
+    } catch (e) { alert('Error: ' + e); }
+  });
+
+  $('btn-export-csv').addEventListener('click', () => {
+    window.location = '/api/export/alerts?format=csv';
+  });
+  $('btn-export-json').addEventListener('click', () => {
+    window.location = '/api/export/alerts?format=json';
+  });
+
+  // ---- socket ----
+  socket.on('connect', () => socket.emit('get_status'));
+
+  socket.on('alert', (a) => {
+    allAlerts.push(a);
+    render();
+    updateKpis();
+    // Flash the tab title briefly
+    document.title = '🚨 ' + document.title.replace(/^🚨 /, '');
+    setTimeout(() => { document.title = document.title.replace(/^🚨 /, ''); }, 2000);
+  });
+
+  // ---- initial + poll ----
+  fetchAlerts();
+  setInterval(fetchAlerts, 3000);
+</script>
 </body>
 </html>
