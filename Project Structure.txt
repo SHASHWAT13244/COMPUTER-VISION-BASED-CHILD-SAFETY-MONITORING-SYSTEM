@@ -70,11 +70,13 @@ child_safety_monitoring/
 │   └── 📄 capture_*.jpg
 │
 ├── 📁 alerts/                         # Alert images (gitignored)
-│   └── 📄 alert_*.jpg
+│   ├── 📄 alert_*.jpg
+│   └── 📄 alert_log.jsonl             # Local alert log (JSONL)
 │
 ├── 📁 recordings/                     # Recorded videos (gitignored)
 │   └── 📄 monitoring_*.mp4
 │
 └── 📁 tests/                          # Tests
     ├── 📄 __init__.py
-    └── 📄 test_system.py              # System tests
+    ├── 📄 test_system.py              # System tests
+    └── 📄 test_activity_recognizer.py # Unit tests for LSTM predictor
