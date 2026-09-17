@@ -1,129 +1,439 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>About - Child Safety Monitoring</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — Child Safety Monitor</title>
+
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+<style>
+  :root {
+    --safe:   #22c55e;
+    --warn:   #f59e0b;
+    --danger: #ef4444;
+    --dark:   #0f172a;
+    --card:   #1e293b;
+    --border: #334155;
+    --text:   #e2e8f0;
+    --muted:  #94a3b8;
+    --accent: #3b82f6;
+  }
+  body {
+    background: var(--dark);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+  }
+  .navbar-brand { font-weight: 700; }
+  .card-dark {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+  }
+  .hero {
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 40px 32px;
+  }
+  .hero h1 { font-weight: 700; letter-spacing: -.5px; }
+  .hero p  { color: var(--muted); font-size: 1.05rem; margin: 0; }
+
+  .badge-tech {
+    display: inline-block;
+    padding: 5px 12px;
+    margin: 3px 3px 3px 0;
+    border-radius: 999px;
+    font-size: .78rem;
+    font-weight: 500;
+    background: rgba(59,130,246,.15);
+    color: #93c5fd;
+    border: 1px solid rgba(59,130,246,.35);
+  }
+
+  .feature-icon {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 12px;
+  }
+  .fi-blue   { background: rgba(59,130,246,.15);  color: #93c5fd; }
+  .fi-green  { background: rgba(34,197,94,.15);   color: var(--safe); }
+  .fi-amber  { background: rgba(245,158,11,.15);  color: var(--warn); }
+  .fi-red    { background: rgba(239,68,68,.15);   color: var(--danger); }
+  .fi-purple { background: rgba(168,85,247,.15);  color: #d8b4fe; }
+  .fi-cyan   { background: rgba(6,182,212,.15);   color: #67e8f9; }
+
+  .team-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+    transition: transform .15s, border-color .15s;
+  }
+  .team-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .team-avatar {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1.4rem; color: #fff;
+    margin: 0 auto 10px;
+  }
+
+  .pipeline-step {
+    position: relative;
+    padding: 14px 16px;
+    border-left: 3px solid var(--accent);
+    background: rgba(59,130,246,.06);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 8px;
+  }
+  .pipeline-step strong { color: #93c5fd; }
+
+  .table-clean th {
+    color: var(--muted);
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: .72rem;
+    letter-spacing: .5px;
+    border-color: var(--border);
+    padding: 10px 8px;
+  }
+  .table-clean td {
+    border-color: var(--border);
+    padding: 10px 8px;
+    vertical-align: middle;
+  }
+
+  a.link-soft { color: #93c5fd; text-decoration: none; }
+  a.link-soft:hover { text-decoration: underline; }
+
+  footer { color: var(--muted); padding: 24px 0; text-align: center; font-size: .8rem; }
+</style>
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container">
-            <a class="navbar-brand" href="{{ url_for('index') }}">
-                <i class="fas fa-shield-alt"></i> Child Safety Monitor
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('index') }}">
-                            <i class="fas fa-home"></i> Home
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('dashboard') }}">
-                            <i class="fas fa-chart-line"></i> Dashboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('alerts_page') }}">
-                            <i class="fas fa-bell"></i> Alerts
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{{ url_for('about') }}">
-                            <i class="fas fa-info-circle"></i> About
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-8 mx-auto">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h4><i class="fas fa-info-circle"></i> About This Project</h4>
-                    </div>
-                    <div class="card-body">
-                        <h5>Computer Vision-Based Child Safety Monitoring System</h5>
-                        <p class="mt-3">
-                            This project develops an intelligent real-time monitoring system using Computer Vision & Deep Learning 
-                            to analyze camera feeds for child safety in homes, schools, and daycares.
-                        </p>
-                        
-                        <h6 class="mt-4">Key Features:</h6>
-                        <ul>
-                            <li><i class="fas fa-check-circle text-success"></i> Real-time child detection & tracking using YOLOv8</li>
-                            <li><i class="fas fa-check-circle text-success"></i> Activity recognition (walking, running, sitting) using LSTM</li>
-                            <li><i class="fas fa-check-circle text-success"></i> Pose estimation for safety using MediaPipe</li>
-                            <li><i class="fas fa-check-circle text-success"></i> Unsafe behavior detection (falls, climbing, running in danger zones)</li>
-                            <li><i class="fas fa-check-circle text-success"></i> Alert generation with visual and audio notifications</li>
-                            <li><i class="fas fa-check-circle text-success"></i> Web-based interface for remote monitoring</li>
-                        </ul>
-                        
-                        <h6 class="mt-4">Technologies Used:</h6>
-                        <div class="row">
-                            <div class="col-md-4">
-                                <div class="tech-badge">Python 3.10</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">OpenCV</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">YOLOv8</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">MediaPipe</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">PyTorch</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">Flask</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">Socket.IO</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="tech-badge">Bootstrap</div>
-                            </div>
-                        </div>
-                        
-                        <h6 class="mt-4">Team Members:</h6>
-                        <ul class="team-list">
-                            <li><i class="fas fa-user"></i> Shashwat Khandelwal (303302223197)</li>
-                            <li><i class="fas fa-user"></i> Shivansh Mishra (303302223199)</li>
-                        </ul>
-                        
-                        <h6 class="mt-4">Project Guide:</h6>
-                        <p><i class="fas fa-chalkboard-teacher"></i> Mrs. Poonam Gupta, Assistant Professor, CSE</p>
-                        
-                        <h6 class="mt-4">Use Cases:</h6>
-                        <ul>
-                            <li><i class="fas fa-home"></i> Home childcare monitoring</li>
-                            <li><i class="fas fa-school"></i> Daycare centers and schools</li>
-                            <li><i class="fas fa-hospital"></i> Hospital pediatric wards</li>
-                            <li><i class="fas fa-building"></i> Smart home security systems</li>
-                        </ul>
-                        
-                        <div class="alert alert-info mt-4">
-                            <i class="fas fa-info-circle"></i> 
-                            <strong>Semester:</strong> 7th | <strong>Batch:</strong> 2023-27 | 
-                            <strong>Session:</strong> July-Dec 2026
-                        </div>
-                    </div>
-                </div>
-            </div>
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark"
+     style="background:#0b1220; border-bottom:1px solid #1e293b;">
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="/">
+      <i class="bi bi-shield-check text-success"></i> Child Safety Monitor
+    </a>
+    <ul class="navbar-nav ms-auto flex-row gap-3">
+      <li class="nav-item"><a class="nav-link" href="/"><i class="bi bi-camera-video"></i> Live</a></li>
+      <li class="nav-item"><a class="nav-link" href="/dashboard"><i class="bi bi-speedometer2"></i> Dashboard</a></li>
+      <li class="nav-item"><a class="nav-link" href="/alerts"><i class="bi bi-bell"></i> Alerts</a></li>
+      <li class="nav-item"><a class="nav-link" href="/settings"><i class="bi bi-gear"></i> Settings</a></li>
+      <li class="nav-item"><a class="nav-link active" href="/about"><i class="bi bi-info-circle"></i> About</a></li>
+    </ul>
+  </div>
+</nav>
+
+<div class="container-fluid px-4 py-4">
+
+  <!-- Hero -->
+  <div class="hero mb-4">
+    <div class="d-flex align-items-center gap-3 mb-2">
+      <i class="bi bi-shield-check text-success" style="font-size:2.4rem;"></i>
+      <h1 class="mb-0">Child Safety Monitoring System</h1>
+    </div>
+    <p>
+      A real-time, AI-powered surveillance system that detects children in a video feed,
+      estimates their body posture, classifies their activity with a deep-learning LSTM model,
+      and raises alerts whenever a potentially unsafe situation is recognized.
+    </p>
+    <div class="mt-3">
+      <span class="badge-tech"><i class="bi bi-eye"></i> YOLOv8 detection</span>
+      <span class="badge-tech"><i class="bi bi-person-arms-up"></i> MediaPipe pose</span>
+      <span class="badge-tech"><i class="bi bi-cpu"></i> PyTorch LSTM</span>
+      <span class="badge-tech"><i class="bi bi-window"></i> Flask + Socket.IO</span>
+      <span class="badge-tech"><i class="bi bi-camera-video"></i> OpenCV</span>
+      <span class="badge-tech"><i class="bi bi-bell"></i> Multi-channel alerts</span>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- LEFT COLUMN -->
+    <div class="col-lg-8">
+
+      <!-- What the system does -->
+      <div class="card card-dark p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-rocket-takeoff text-info"></i> What the system does</h5>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="feature-icon fi-blue"><i class="bi bi-bounding-box"></i></div>
+            <strong>Person Detection</strong>
+            <p class="text-muted small mb-0">
+              YOLOv8 locates children in each frame, drawing bounding boxes and confidence scores.
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="feature-icon fi-green"><i class="bi bi-person-arms-up"></i></div>
+            <strong>Pose Estimation</strong>
+            <p class="text-muted small mb-0">
+              MediaPipe extracts 33 body landmarks (shoulders, elbows, hips, knees, ankles …).
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="feature-icon fi-amber"><i class="bi bi-graph-up-arrow"></i></div>
+            <strong>Activity Recognition</strong>
+            <p class="text-muted small mb-0">
+              A 30-frame sequence of keypoints is classified by an LSTM into one of five activities.
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="feature-icon fi-red"><i class="bi bi-exclamation-triangle"></i></div>
+            <strong>Safety Rule Engine</strong>
+            <p class="text-muted small mb-0">
+              Rule-based logic flags unsafe behaviour — falls, climbing, running in restricted areas.
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="feature-icon fi-purple"><i class="bi bi-bell"></i></div>
+            <strong>Alert Generation</strong>
+            <p class="text-muted small mb-0">
+              Caregivers are notified instantly via desktop, email, Telegram, SMS or webhook.
+            </p>
+          </div>
+          <div class="col-md-6">
+            <div class="feature-icon fi-cyan"><i class="bi bi-bar-chart"></i></div>
+            <strong>Live Dashboard</strong>
+            <p class="text-muted small mb-0">
+              Web UI shows the video stream, current activity, confidence, FPS and full alert history.
+            </p>
+          </div>
         </div>
+      </div>
+
+      <!-- Pipeline -->
+      <div class="card card-dark p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-diagram-3 text-info"></i> Processing pipeline</h5>
+
+        <div class="pipeline-step">
+          <strong>1. Video Input</strong> —
+          <span class="text-muted small">frame captured from webcam / CCTV via OpenCV</span>
+        </div>
+        <div class="pipeline-step">
+          <strong>2. Object Detection</strong> —
+          <span class="text-muted small">YOLOv8 (every N<sup>th</sup> frame for real-time throughput)</span>
+        </div>
+        <div class="pipeline-step">
+          <strong>3. Pose Estimation</strong> —
+          <span class="text-muted small">MediaPipe Pose → 33 landmarks × (x, y, z)</span>
+        </div>
+        <div class="pipeline-step">
+          <strong>4. Sequence Buffer</strong> —
+          <span class="text-muted small">rolling window of 30 frames (99 features per frame)</span>
+        </div>
+        <div class="pipeline-step">
+          <strong>5. LSTM Classifier</strong> —
+          <span class="text-muted small">walking · running · sitting · falling · climbing</span>
+        </div>
+        <div class="pipeline-step">
+          <strong>6. Safety Rules</strong> —
+          <span class="text-muted small">confidence threshold + activity + pose heuristics</span>
+        </div>
+        <div class="pipeline-step mb-0">
+          <strong>7. Alert / Dashboard</strong> —
+          <span class="text-muted small">Socket.IO push + MJPEG stream to browser</span>
+        </div>
+      </div>
+
+      <!-- Detected activities -->
+      <div class="card card-dark p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-person-walking text-info"></i> Detected activities</h5>
+        <div class="table-responsive">
+          <table class="table table-dark table-clean mb-0">
+            <thead>
+              <tr>
+                <th>Activity</th>
+                <th>Status</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>🚶 Walking</td>
+                <td><span class="badge bg-success">Safe</span></td>
+                <td class="text-muted small">Normal walking behaviour</td>
+              </tr>
+              <tr>
+                <td>🏃 Running</td>
+                <td><span class="badge bg-warning text-dark">Caution</span></td>
+                <td class="text-muted small">Running may increase the risk of injury</td>
+              </tr>
+              <tr>
+                <td>🪑 Sitting</td>
+                <td><span class="badge bg-success">Safe</span></td>
+                <td class="text-muted small">Normal sitting position</td>
+              </tr>
+              <tr>
+                <td>💫 Falling</td>
+                <td><span class="badge bg-danger">Unsafe</span></td>
+                <td class="text-muted small">Potential fall requiring immediate attention</td>
+              </tr>
+              <tr>
+                <td>🧗 Climbing</td>
+                <td><span class="badge bg-danger">Unsafe</span></td>
+                <td class="text-muted small">Potentially dangerous climbing behaviour</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Model performance -->
+      <div class="card card-dark p-4">
+        <h5 class="mb-3"><i class="bi bi-graph-up text-info"></i> Model performance (pilot evaluation)</h5>
+        <div class="row text-center g-3 mb-3">
+          <div class="col-6 col-md-3">
+            <div class="kpi-label">Accuracy</div>
+            <div class="kpi-value text-success" style="font-size:1.6rem">94.1%</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="kpi-label">Macro F1</div>
+            <div class="kpi-value text-info" style="font-size:1.6rem">93.1%</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="kpi-label">Weighted F1</div>
+            <div class="kpi-value text-info" style="font-size:1.6rem">94.3%</div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="kpi-label">Classes</div>
+            <div class="kpi-value text-warning" style="font-size:1.6rem">5</div>
+          </div>
+        </div>
+        <p class="text-muted small mb-0">
+          <i class="bi bi-info-circle"></i>
+          Metrics are computed on a small pilot dataset (82 sequences) and reflect
+          pipeline correctness rather than deployment-scale performance. Expanding the
+          dataset is part of the planned future work.
+        </p>
+      </div>
+
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- RIGHT COLUMN -->
+    <div class="col-lg-4">
+
+      <!-- Tech stack -->
+      <div class="card card-dark p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-stack text-info"></i> Technology stack</h5>
+
+        <div class="mb-3">
+          <div class="text-muted small mb-1">Detection</div>
+          <span class="badge-tech">Ultralytics YOLOv8</span>
+          <span class="badge-tech">OpenCV</span>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small mb-1">Pose</div>
+          <span class="badge-tech">MediaPipe Pose</span>
+          <span class="badge-tech">NumPy</span>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small mb-1">Deep learning</div>
+          <span class="badge-tech">PyTorch</span>
+          <span class="badge-tech">LSTM</span>
+          <span class="badge-tech">scikit-learn</span>
+        </div>
+        <div class="mb-3">
+          <div class="text-muted small mb-1">Backend / UI</div>
+          <span class="badge-tech">Flask</span>
+          <span class="badge-tech">Socket.IO</span>
+          <span class="badge-tech">Bootstrap 5</span>
+          <span class="badge-tech">Chart.js</span>
+        </div>
+        <div>
+          <div class="text-muted small mb-1">Alerts</div>
+          <span class="badge-tech">SMTP</span>
+          <span class="badge-tech">Telegram Bot</span>
+          <span class="badge-tech">Webhook</span>
+        </div>
+      </div>
+
+      <!-- Team -->
+      <div class="card card-dark p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-people text-info"></i> Project team</h5>
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="team-card">
+              <div class="team-avatar">SK</div>
+              <div class="fw-bold small">Shashwat Khandelwal</div>
+              <div class="text-muted" style="font-size:.72rem;">303302223197</div>
+              <div class="badge bg-primary mt-2" style="font-size:.65rem;">Team Leader</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="team-card">
+              <div class="team-avatar">SM</div>
+              <div class="fw-bold small">Shivansh Mishra</div>
+              <div class="text-muted" style="font-size:.72rem;">303302223199</div>
+              <div class="badge bg-secondary mt-2" style="font-size:.65rem;">Team Member</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="team-card">
+              <div class="team-avatar">AO</div>
+              <div class="fw-bold small">Arpit Ojha</div>
+              <div class="text-muted" style="font-size:.72rem;">303302223049</div>
+              <div class="badge bg-secondary mt-2" style="font-size:.65rem;">Team Member</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="team-card">
+              <div class="team-avatar">AV</div>
+              <div class="fw-bold small">Aashutosh Vaish</div>
+              <div class="text-muted" style="font-size:.72rem;">303302223004</div>
+              <div class="badge bg-secondary mt-2" style="font-size:.65rem;">Team Member</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guide -->
+      <div class="card card-dark p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-mortarboard text-info"></i> Project guide</h5>
+        <div class="d-flex align-items-center gap-3">
+          <div class="team-avatar" style="margin:0;">PG</div>
+          <div>
+            <div class="fw-bold">Mrs. Poonam Gupta</div>
+            <div class="text-muted small">Assistant Professor</div>
+            <div class="text-muted small">Dept. of CSE, SSIPMT Raipur</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Project metadata -->
+      <div class="card card-dark p-4">
+        <h5 class="mb-3"><i class="bi bi-info-square text-info"></i> Project details</h5>
+        <table class="table table-dark table-clean mb-0">
+          <tbody>
+            <tr><td class="text-muted">Semester</td><td>7<sup>th</sup></td></tr>
+            <tr><td class="text-muted">Batch</td><td>2023–27</td></tr>
+            <tr><td class="text-muted">Session</td><td>Jul – Dec 2026</td></tr>
+            <tr><td class="text-muted">Institution</td><td>SSIPMT, Raipur</td></tr>
+            <tr><td class="text-muted">Department</td><td>CSE</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Child Safety Monitoring System &middot; SSIPMT Raipur &middot; Batch 2023–27
+</footer>
+
 </body>
 </html>
