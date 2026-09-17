@@ -8,7 +8,6 @@ import sys
 import json
 import numpy as np
 
-# Must set backend before importing pyplot (headless-safe)
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -27,8 +26,6 @@ from models.activity_recognizer import ActivityRecognizer
 
 def evaluate_model(data_path='data/training_data.npz',
                    model_path='saved_models/activity_model.pth'):
-    """Evaluate trained model performance"""
-
     print("\n" + "=" * 70)
     print("📊 MODEL PERFORMANCE EVALUATION")
     print("=" * 70)
@@ -62,10 +59,12 @@ def evaluate_model(data_path='data/training_data.npz',
         print(f"⚠️  Model not found: {model_path}")
         print("Using untrained model...")
     else:
-        recognizer.load_model(model_path)
-        print(f"✅ Model loaded from: {model_path}")
+        try:
+            recognizer.load_model(model_path)
+            print(f"✅ Model loaded from: {model_path}")
+        except Exception as e:
+            print(f"⚠️  Failed to load model ({e}). Using untrained model...")
 
-    # ---- Predict ----
     print("\n🔮 Making predictions...")
     predictions = []
     confidences = []
@@ -85,7 +84,6 @@ def evaluate_model(data_path='data/training_data.npz',
     y_test = np.array(y_test)
     all_classes = recognizer.activity_labels
 
-    # Treat unknown-class predictions as wrong (assign to an existing class)
     if dropped:
         print(f"\n⚠️  {dropped} prediction(s) referenced unknown classes.")
         print("   Counting them as incorrect predictions.")
@@ -97,7 +95,6 @@ def evaluate_model(data_path='data/training_data.npz',
     present_classes = np.unique(y_test)
     present_class_names = [all_classes[i] for i in present_classes]
 
-    # ---- Metrics ----
     print("\n" + "=" * 70)
     print("📊 PERFORMANCE METRICS")
     print("=" * 70)
@@ -188,9 +185,9 @@ def evaluate_model(data_path='data/training_data.npz',
         'data_path':        data_path,
     }
 
-    with open('evaluation_results.json', 'w') as f:
+    with open(Config.EVALUATION_RESULTS_PATH, 'w') as f:
         json.dump(results, f, indent=2)
-    print(f"\n✅ Results saved to: evaluation_results.json")
+    print(f"\n✅ Results saved to: {Config.EVALUATION_RESULTS_PATH}")
 
     generate_plots(cm, present_class_names, precision, recall, f1, accuracy,
                    macro_precision, macro_recall, macro_f1, supports,
@@ -202,11 +199,8 @@ def evaluate_model(data_path='data/training_data.npz',
 def generate_plots(cm, classes, precision, recall, f1, accuracy,
                    macro_precision, macro_recall, macro_f1, supports,
                    y_test, predictions, all_classes):
-    """Generate visualization plots"""
-
     fig, axes = plt.subplots(2, 3, figsize=(18, 10))
 
-    # 1. Confusion Matrix
     ax1 = axes[0, 0]
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
                 xticklabels=classes, yticklabels=classes, ax=ax1)
@@ -214,7 +208,6 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
     ax1.set_xlabel('Predicted')
     ax1.set_ylabel('Actual')
 
-    # 2. Per-class metrics
     ax2 = axes[0, 1]
     x = np.arange(len(classes))
     width = 0.25
@@ -230,7 +223,6 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
     ax2.set_ylim(0, 1.1)
     ax2.grid(True, alpha=0.3)
 
-    # 3. Overall metrics
     ax3 = axes[0, 2]
     metrics_values = [accuracy, macro_precision, macro_recall, macro_f1]
     metrics_names = ['Accuracy', 'Macro\nPrecision', 'Macro\nRecall', 'Macro\nF1']
@@ -247,7 +239,6 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
         ax3.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
                  f'{val:.3f}', ha='center', va='bottom', fontweight='bold')
 
-    # 4. Class distribution / correct predictions
     ax4 = axes[1, 0]
     correct = np.diag(cm)
     ax4.bar(classes, supports, color='#3498db', alpha=0.7,
@@ -261,7 +252,6 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
     ax4.legend()
     ax4.grid(True, alpha=0.3)
 
-    # 5. Precision-Recall scatter
     ax5 = axes[1, 1]
     scatter = ax5.scatter(recall, precision, s=100, c=range(len(classes)),
                           cmap='viridis', alpha=0.7)
@@ -277,7 +267,6 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
     ax5.grid(True, alpha=0.3)
     plt.colorbar(scatter, ax=ax5, label='Classes')
 
-    # 6. Summary text
     ax6 = axes[1, 2]
     ax6.axis('off')
 
@@ -333,9 +322,9 @@ def generate_plots(cm, classes, precision, recall, f1, accuracy,
              bbox=dict(boxstyle='round', facecolor='#f0f0f0', alpha=0.8))
 
     plt.tight_layout()
-    plt.savefig('evaluation_plots.png', dpi=300, bbox_inches='tight')
-    plt.close(fig)     # no plt.show() — headless safe
-    print("✅ Visualization saved to: evaluation_plots.png")
+    plt.savefig(Config.EVALUATION_PLOTS_PATH, dpi=300, bbox_inches='tight')
+    plt.close(fig)
+    print(f"✅ Visualization saved to: {Config.EVALUATION_PLOTS_PATH}")
 
 
 if __name__ == "__main__":
@@ -346,8 +335,8 @@ if __name__ == "__main__":
             print("✅ EVALUATION COMPLETE")
             print("=" * 70)
             print("📄 Files generated:")
-            print("   - evaluation_results.json")
-            print("   - evaluation_plots.png")
+            print(f"   - {Config.EVALUATION_RESULTS_PATH}")
+            print(f"   - {Config.EVALUATION_PLOTS_PATH}")
     except Exception as e:
         print(f"❌ Error during evaluation: {e}")
         import traceback
