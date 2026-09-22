@@ -1,7 +1,7 @@
 # app.py
 """
 Main Application for Child Safety Monitoring System
-Runs the real-time monitoring pipeline with webcam input
+Runs the real-time monitoring pipeline with webcam input.
 """
 
 import cv2
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 MAX_ALERTS_KEPT = 1000
+SEVERITY_RANK   = {"low": 0, "medium": 1, "high": 2}
 
 
 class ChildSafetyMonitor:
@@ -69,10 +70,12 @@ class ChildSafetyMonitor:
         self.safety_engine = SafetyEngine()
         self.tracker = PersonTracker(max_lost_frames=10, min_confidence=0.5)
 
+        # Unified alert system (uses alert_config.json if present).
         self.alert_system = AlertSystem(
+            config_path=getattr(self.config, "ALERT_CONFIG_PATH", None),
             sound_enabled=self.config.ALERT_SOUND,
             display_enabled=True,
-            log_enabled=self.config.ALERT_LOG
+            log_enabled=self.config.ALERT_LOG,
         )
 
         self.visualizer = Visualizer(show_fps=True, show_info=True)
@@ -82,6 +85,7 @@ class ChildSafetyMonitor:
         self.running = False
         self.cap = None
 
+        # Per-track keypoint buffers (crop-normalized keypoints).
         self.keypoint_buffers = defaultdict(
             lambda: deque(maxlen=self.config.SEQUENCE_LENGTH))
 
@@ -117,6 +121,9 @@ class ChildSafetyMonitor:
         logger.info("No pre-trained model found. Using random weights.")
         logger.info("You can train the model using training data.")
 
+    # ------------------------------------------------------------------ #
+    # main loop
+    # ------------------------------------------------------------------ #
     def start(self, camera_id=0, save_video=False, output_path=None):
         logger.info(f"Starting camera (ID: {camera_id})...")
 
@@ -192,17 +199,22 @@ class ChildSafetyMonitor:
             elif key == ord('v'):
                 self._toggle_visualization()
 
+    # ------------------------------------------------------------------ #
+    # per-frame processing
+    # ------------------------------------------------------------------ #
     def _process_frame(self, frame):
-        """Process one frame with per-person pose and activity."""
+        """Process one frame with *per-person* pose and activity."""
         result = {
-            'activity': 'None',
-            'confidence': 0.0,
-            'safe': True,
-            'message': 'All safe',
-            'severity': 'low',
-            'alert': None,
-            'detections': [],
-            'tracks': {}
+            'activity':        'None',
+            'confidence':      0.0,
+            'safe':            True,
+            'message':         'All safe',
+            'severity':        'low',
+            'alert':           None,
+            'alert_generated': False,
+            'detections':      [],
+            'tracks':          {},
+            'alert_bbox':      None,
         }
 
         detections = self.detector.detect(frame)
@@ -213,105 +225,126 @@ class ChildSafetyMonitor:
 
         annotated_frame = frame.copy()
 
-        for det in detections:
-            x1, y1, x2, y2 = det['bbox']
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
+        # ------------------------------------------------------------------
+        # release stale per-track pose instances and buffers
+        # ------------------------------------------------------------------
         active_ids = set(tracks.keys())
         for tid in list(self.keypoint_buffers.keys()):
             if tid not in active_ids:
                 del self.keypoint_buffers[tid]
+        self.pose_estimator.forget_stale_tracks(active_ids)
 
-        pose_drawn = False
+        # ------------------------------------------------------------------
+        # per-track: bbox -> crop -> pose -> buffer -> activity -> safety
+        # ------------------------------------------------------------------
+        aggregate_safe       = True
+        aggregate_severity   = "low"
+        aggregate_message    = "All safe"
+        aggregate_activity   = "None"
+        aggregate_confidence = 0.0
+        aggregate_alert      = False
+        aggregate_bbox       = None
 
         for track_id, track in tracks.items():
             bbox = track['bbox']
             x1, y1, x2, y2 = bbox
-            x1 = max(0, x1); y1 = max(0, y1)
-            x2 = max(0, x2); y2 = max(0, y2)
+            cv2.rectangle(annotated_frame,
+                          (x1, y1), (x2, y2), (0, 255, 0), 2)
 
-            if y2 <= y1 or x2 <= x1:
+            try:
+                pose = self.pose_estimator.extract_keypoints_from_bbox(
+                    frame, bbox, track_id=track_id
+                )
+            except Exception as e:
+                logger.error(f"Pose error for track {track_id}: {e}")
+                pose = None
+
+            if pose is None:
                 continue
 
             try:
-                # Extract pose from the *full frame* so keypoints are in a
-                # consistent normalized coordinate space across the codebase
-                # (matches flask_app.py behaviour).
-                keypoints = self.pose_estimator.extract_keypoints(frame)
-            except Exception as e:
-                logger.error(f"Pose error: {e}")
-                keypoints = None
+                self.pose_estimator.draw_pose_from_keypoints(
+                    annotated_frame, pose['keypoints_frame']
+                )
+            except Exception:
+                pass
 
-            if keypoints is None:
+            keypoints_flat = pose['keypoints_crop'][:, :3].flatten()
+            buf = self.keypoint_buffers[track_id]
+            buf.append(keypoints_flat)
+
+            if len(buf) < self.config.SEQUENCE_LENGTH:
                 continue
 
-            if not pose_drawn:
-                try:
-                    annotated_frame = self.pose_estimator.draw_pose(annotated_frame)
-                    pose_drawn = True
-                except Exception:
-                    pass
-
-            keypoints_flat = keypoints[:, :3].flatten()
-            buffer = self.keypoint_buffers[track_id]
-            buffer.append(keypoints_flat)
-
-            if len(buffer) < self.config.SEQUENCE_LENGTH:
-                result['activity'] = 'Collecting data...'
-                result['confidence'] = 0.0
-                continue
-
-            seq = list(buffer)[-self.config.SEQUENCE_LENGTH:]
-
+            seq = list(buf)[-self.config.SEQUENCE_LENGTH:]
             try:
                 activity, confidence = self.activity_recognizer.predict_activity(seq)
             except Exception as e:
-                logger.error(f"Activity predict error: {e}")
+                logger.error(f"Activity predict error for track {track_id}: {e}")
                 continue
 
             if activity is None:
                 continue
 
-            self.current_activity = activity or 'Unknown'
-            self.current_confidence = confidence
-            result['activity'] = activity or 'Unknown'
-            result['confidence'] = confidence
-
             try:
                 safety_result = self.safety_engine.check_safety(
                     activity=activity,
                     confidence=confidence,
-                    pose_keypoints=keypoints,
+                    pose_keypoints=pose['keypoints_frame'],
                     bbox=bbox,
                     frame_time=datetime.now(),
                 )
             except Exception as e:
-                logger.error(f"Safety check error: {e}")
+                logger.error(f"Safety check error for track {track_id}: {e}")
                 continue
 
-            if not safety_result.get('safe', True) or result['safe']:
-                result['safe']            = safety_result.get('safe', True)
-                result['message']         = safety_result.get('message', 'All safe')
-                result['severity']        = safety_result.get('severity', 'low')
-                result['alert']           = safety_result.get('alert')
-                result['alert_generated'] = safety_result.get('alert_generated', False)
+            if not safety_result.get('safe', True):
+                aggregate_safe = False
+                if (SEVERITY_RANK.get(safety_result.get('severity', 'low'), 0)
+                        >= SEVERITY_RANK.get(aggregate_severity, 0)):
+                    aggregate_severity   = safety_result.get('severity', 'low')
+                    aggregate_message    = safety_result.get('message',
+                                                             'Unsafe activity')
+                    aggregate_activity   = activity
+                    aggregate_confidence = confidence
+                    aggregate_bbox       = bbox
 
-            if (not safety_result.get('safe', True)
-                    and safety_result.get('alert_generated', False)):
-                try:
-                    alert_info = self.alert_system.generate_alert(
-                        message=safety_result.get('message', 'Unsafe activity'),
-                        severity=safety_result.get('severity', 'high'),
-                        activity=activity,
-                        bbox=bbox,
-                    )
-                    # generate_alert() returns None when throttled/cooldown-suppressed
-                    if alert_info is not None:
-                        self.alerts.append(alert_info)
-                        result['alert_info'] = alert_info
-                except Exception as e:
-                    logger.error(f"Alert generation error: {e}")
+            if safety_result.get('alert_generated', False):
+                aggregate_alert = True
 
+        result['safe']            = aggregate_safe
+        result['severity']        = aggregate_severity
+        result['message']         = aggregate_message
+        result['activity']        = aggregate_activity
+        result['confidence']      = aggregate_confidence
+        result['alert_generated'] = aggregate_alert
+        result['alert_bbox']      = aggregate_bbox
+
+        # ------------------------------------------------------------------
+        # alert: single call into the consolidated alert system
+        # ------------------------------------------------------------------
+        if (not result['safe']
+                and result['alert_generated']
+                and result['alert_bbox'] is not None):
+            try:
+                alert_info = self.alert_system.generate_alert(
+                    message=result['message'],
+                    severity=result['severity'],
+                    activity=result['activity'],
+                    bbox=result['alert_bbox'],
+                    source='live_feed',
+                    confidence=float(result['confidence']),
+                    send=True,
+                )
+                if alert_info is not None:
+                    self.alerts.append(alert_info)
+                    result['alert_info'] = alert_info
+            except Exception as e:
+                logger.error(f"Alert generation error: {e}")
+
+        # ------------------------------------------------------------------
+        # overlay
+        # ------------------------------------------------------------------
         annotated_frame = self.visualizer.draw_status(
             annotated_frame,
             result['activity'],
@@ -327,6 +360,9 @@ class ChildSafetyMonitor:
 
         return annotated_frame, result
 
+    # ------------------------------------------------------------------ #
+    # helpers
+    # ------------------------------------------------------------------ #
     def _save_frame(self, frame):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         os.makedirs(self.config.CAPTURES_DIR, exist_ok=True)
@@ -344,6 +380,8 @@ class ChildSafetyMonitor:
         self.safety_engine.reset()
         self.tracker.reset()
         self.activity_recognizer.reset_buffer()
+        self.pose_estimator.forget_all_tracks()
+        self.alert_system.reset()
         logger.info("System state reset")
 
     def _toggle_visualization(self):
@@ -359,6 +397,7 @@ class ChildSafetyMonitor:
             self.video_writer.release()
         cv2.destroyAllWindows()
         self.perf_monitor.stop_monitoring()
+        self.pose_estimator.close()
         logger.info("System stopped.")
 
         stats = self.alert_system.get_alert_statistics()
@@ -377,7 +416,8 @@ class ChildSafetyMonitor:
             if 'cpu_usage' in summary:
                 logger.info(f"CPU Usage: {summary['cpu_usage']['average']:.1f}%")
             if 'memory_usage' in summary:
-                logger.info(f"Memory Usage: {summary['memory_usage']['average']:.1f}%")
+                logger.info(f"Memory Usage: "
+                            f"{summary['memory_usage']['average']:.1f}%")
 
     def train_from_data(self, data_path=None, save_model=True):
         if data_path is None:
@@ -385,7 +425,8 @@ class ChildSafetyMonitor:
 
         if not os.path.exists(data_path):
             logger.error(f"Training data not found at {data_path}")
-            logger.info("Please prepare training data first using data_preparation.py")
+            logger.info("Please prepare training data first using "
+                        "data_preparation.py")
             return None
 
         logger.info(f"Loading training data from {data_path}")
@@ -401,8 +442,10 @@ class ChildSafetyMonitor:
         logger.info(f"Training set: {X_train.shape[0]} samples")
         logger.info(f"Validation set: {X_val.shape[0]} samples")
 
-        save_path = (os.path.join(self.config.MODELS_DIR, 'activity_model.pth')
-                     if save_model else None)
+        save_path = (
+            os.path.join(self.config.MODELS_DIR, 'activity_model.pth')
+            if save_model else None
+        )
 
         history = self.activity_recognizer.train_model(
             X_train, y_train, X_val, y_val,
@@ -414,14 +457,16 @@ class ChildSafetyMonitor:
 
         logger.info("\nTraining completed!")
         logger.info(f"Final training accuracy: {history['accuracy'][-1]:.2f}%")
-        logger.info(f"Final validation accuracy: {history['val_accuracy'][-1]:.2f}%")
+        logger.info(f"Final validation accuracy: "
+                    f"{history['val_accuracy'][-1]:.2f}%")
         if save_path:
             logger.info(f"Model saved to {save_path}")
         return history
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Child Safety Monitoring System')
+    parser = argparse.ArgumentParser(
+        description='Child Safety Monitoring System')
     parser.add_argument('--camera', '-c', type=int, default=0,
                         help='Camera device ID (default: 0)')
     parser.add_argument('--save-video', '-s', action='store_true',
