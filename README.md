@@ -525,38 +525,50 @@ saved_models/
 ```bash
 python run_evaluation.py
 ```
+## 📊 Evaluation & Results
 
-### Evaluation Metrics
+The model was evaluated on a held-out test set of **91 samples** across 5 activity classes. Results are stored in `evaluation_results.json`.
 
-Based on the current evaluation documentation:
+### Overall Metrics
 
-| Metric                |  Value |
-| --------------------- | -----: |
-| **Accuracy**          | 92.86% |
-| **Precision (Macro)** | 95.00% |
-| **Recall (Macro)**    | 93.75% |
-| **F1-Score (Macro)**  | 93.65% |
+| Metric                | Score    |
+| --------------------- | -------- |
+| **Accuracy**          | 90.11%   |
+| **Macro Precision**   | 92.06%   |
+| **Macro Recall**      | 83.47%   |
+| **Macro F1-Score**    | 86.04%   |
+| **Weighted Precision**| 90.38%   |
+| **Weighted Recall**   | 90.11%   |
+| **Weighted F1-Score** | 89.81%   |
 
 ### Per-Class Performance
 
-| Activity | Precision | Recall | F1-Score | Support |
-| -------- | --------: | -----: | -------: | ------: |
-| Walking  |    1.0000 | 1.0000 |   1.0000 |       2 |
-| Running  |    1.0000 | 0.7500 |   0.8571 |       4 |
-| Sitting  |    1.0000 | 1.0000 |   1.0000 |       4 |
-| Climbing |    0.8000 | 1.0000 |   0.8889 |       4 |
+| Activity    | Precision | Recall | F1-Score | Support |
+| ----------- | --------- | ------ | -------- | ------- |
+| 🚶 Walking  | 0.885     | 0.885  | 0.885    | 26      |
+| 🏃 Running  | 0.857     | 0.900  | 0.878    | 20      |
+| 🪑 Sitting  | 0.920     | 1.000  | 0.958    | 23      |
+| 💫 Falling  | 1.000     | 0.500  | 0.667    | 4       |
+| 🧗 Climbing | 0.941     | 0.889  | 0.914    | 18      |
 
-### Generated Files
+### Confusion Matrix
 
-The evaluation process generates:
+| Actual ↓ / Predicted → | walking | running | sitting | falling | climbing |
+| ---------------------- | ------- | ------- | ------- | ------- | -------- |
+| **walking**            | 23      | 2       | 0       | 0       | 1        |
+| **running**            | 2       | 18      | 0       | 0       | 0        |
+| **sitting**            | 0       | 0       | 23      | 0       | 0        |
+| **falling**            | 1       | 0       | 1       | 2       | 0        |
+| **climbing**           | 0       | 1       | 1       | 0       | 16       |
 
-```text
-evaluation_results.json
-evaluation_plots.png
-```
+### Key Observations
 
-* `evaluation_results.json` — Stores evaluation metrics in JSON format.
-* `evaluation_plots.png` — Performance visualization dashboard.
+* ✅ **Best performing class:** Sitting (F1: 95.83%)
+* ⚠️ **Class needing improvement:** Falling (F1: 66.67%) — limited by only 4 test samples
+* 📈 All classes exceed the 80% target F1-score except falling
+* 🎯 Overall accuracy of 90.11% indicates strong generalization
+
+> **Note:** The falling class has a small support (4 samples), which affects its recall. Collecting more falling samples and applying data augmentation is recommended for future iterations.
 
 ---
 
