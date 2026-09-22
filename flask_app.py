@@ -35,7 +35,6 @@ from models.activity_recognizer import ActivityRecognizer
 from models.safety_engine import SafetyEngine
 from models.tracker import PersonTracker
 from utils.alert import AlertSystem
-from utils.alert_advanced import AdvancedAlertSystem
 from utils.visualization import Visualizer
 from utils.performance_monitor import PerformanceMonitor
 
@@ -74,12 +73,18 @@ activity_recognizer = ActivityRecognizer(
     bidirectional=Config.LSTM_BIDIRECTIONAL,
 )
 
-safety_engine   = SafetyEngine()
-tracker         = PersonTracker(max_lost_frames=10, min_confidence=0.5)
-alert_system    = AlertSystem(sound_enabled=False, display_enabled=True, log_enabled=True)
-advanced_alert  = AdvancedAlertSystem(Config.ALERT_CONFIG_PATH)
-visualizer      = Visualizer(show_fps=True, show_info=True, show_activity=True)
-perf_monitor    = PerformanceMonitor()
+safety_engine = SafetyEngine()
+tracker       = PersonTracker(max_lost_frames=10, min_confidence=0.5)
+
+# Single unified alert system.
+alert_system = AlertSystem(
+    config_path=Config.ALERT_CONFIG_PATH,
+    sound_enabled=False,
+    display_enabled=True,
+    log_enabled=True,
+)
+visualizer   = Visualizer(show_fps=True, show_info=True, show_activity=True)
+perf_monitor = PerformanceMonitor()
 
 _alert_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='alert')
 
@@ -107,19 +112,20 @@ perf_monitor.start_monitoring()
 # =====================================================================
 #  CONSTANTS
 # =====================================================================
-MAX_ALERTS_KEPT  = 1000
-MAX_EMPTY_GRACE  = 5
+MAX_ALERTS_KEPT = 1000
+MAX_EMPTY_GRACE = 5
+SEVERITY_RANK   = {"low": 0, "medium": 1, "high": 2}
 
 
 # =====================================================================
 #  SHARED STATE
 # =====================================================================
 _current_status = {
-    'activity': 'None',
-    'confidence': 0.0,
-    'safe': True,
-    'alerts': [],
-    'fps': 0.0,
+    'activity':    'None',
+    'confidence':  0.0,
+    'safe':        True,
+    'alerts':      [],
+    'fps':         0.0,
     'frame_count': 0,
 }
 _status_lock = threading.Lock()
@@ -127,10 +133,10 @@ _status_lock = threading.Lock()
 _alerts_list = []
 _alerts_lock = threading.Lock()
 
-keypoint_buffers = {}
+keypoint_buffers = {}    # track_id -> list of flattened crop-normalized keypoints
 _processing_lock = threading.Lock()
 
-_recognizer_lock  = threading.Lock()
+_recognizer_lock   = threading.Lock()
 _config_write_lock = threading.Lock()
 
 camera           = None
@@ -138,14 +144,13 @@ _reader_thread   = None
 _reader_running  = False
 _reader_lock     = threading.Lock()
 
-_subscribers       = set()
-_subscribers_lock  = threading.Lock()
+_subscribers      = set()
+_subscribers_lock = threading.Lock()
 _last_frame_for_capture = None
 _last_frame_lock        = threading.Lock()
 
-_last_boxes              = []
-_last_keypoints          = None
-_empty_detection_frames  = 0
+_last_boxes             = []
+_empty_detection_frames = 0
 
 _start_time       = datetime.now()
 monitoring_active = False
@@ -156,26 +161,31 @@ monitoring_active = False
 # =====================================================================
 def _empty_result():
     return {
-        'activity': 'Collecting data...',
-        'confidence': 0.0,
-        'safe': True,
-        'message': 'All safe',
-        'severity': 'low',
-        'alert': None,
+        'activity':        'Collecting data...',
+        'confidence':      0.0,
+        'safe':            True,
+        'message':         'All safe',
+        'severity':        'low',
+        'alert':           None,
         'alert_generated': False,
-        'detections': [],
+        'detections':      [],
+        'tracks':          {},
+        'alert_bbox':      None,
     }
 
 
 def process_single_frame(frame):
-    global _last_boxes, _last_keypoints, _empty_detection_frames
+    """Run detector + tracker + per-track pose/activity/safety.
+
+    Returns an aggregated result suitable for visualization, alerting,
+    and status reporting. Safety is aggregated as "worst wins".
+    """
+    global _last_boxes, _empty_detection_frames
 
     with _status_lock:
         fc = _current_status['frame_count']
 
     do_detect = (fc % Config.DETECT_EVERY_N_FRAMES == 0) or not _last_boxes
-    do_pose   = (fc % Config.POSE_EVERY_N_FRAMES  == 0) or _last_keypoints is None
-
     if do_detect:
         try:
             _last_boxes = detector.detect(frame)
@@ -190,78 +200,128 @@ def process_single_frame(frame):
         logger.error(f"Tracker error: {e}")
         tracks = {}
 
+    # ---------------------------------------------------------------
+    # release stale per-track state
+    # ---------------------------------------------------------------
+    active_ids = set(tracks.keys())
     with _processing_lock:
         for tid in list(keypoint_buffers.keys()):
-            if tid not in tracks:
+            if tid not in active_ids:
                 del keypoint_buffers[tid]
+    pose_estimator.forget_stale_tracks(active_ids)
 
     if not detections:
         _empty_detection_frames += 1
         if _empty_detection_frames >= MAX_EMPTY_GRACE:
-            _last_keypoints = None
             with _processing_lock:
                 keypoint_buffers.clear()
+            pose_estimator.forget_all_tracks()
         return _empty_result()
     _empty_detection_frames = 0
 
-    if do_pose:
-        try:
-            _last_keypoints = pose_estimator.extract_keypoints(frame)
-        except Exception as e:
-            logger.error(f"Pose error: {e}")
-            _last_keypoints = None
-    keypoints = _last_keypoints
-
     result = _empty_result()
     result['detections'] = detections
-    result['tracks'] = tracks
+    result['tracks'] = {}
 
-    if keypoints is None:
-        return result
+    # ---------------------------------------------------------------
+    # per-track: pose on bbox crop -> buffer -> activity -> safety
+    # ---------------------------------------------------------------
+    aggregate_safe       = True
+    aggregate_severity   = "low"
+    aggregate_message    = "All safe"
+    aggregate_activity   = "None"
+    aggregate_confidence = 0.0
+    aggregate_alert      = False
+    aggregate_bbox       = None
 
-    primary_track_id = next(iter(tracks.keys()), 0)
-    keypoints_flat = keypoints[:, :3].flatten()
+    for track_id, track in tracks.items():
+        bbox = track['bbox']
 
-    with _processing_lock:
-        buf = keypoint_buffers.setdefault(primary_track_id, [])
-        buf.append(keypoints_flat)
-        if len(buf) > Config.SEQUENCE_LENGTH:
-            del buf[:-Config.SEQUENCE_LENGTH]
-        buffer_snapshot = list(buf)
+        try:
+            pose = pose_estimator.extract_keypoints_from_bbox(
+                frame, bbox, track_id=track_id
+            )
+        except Exception as e:
+            logger.error(f"Pose error for track {track_id}: {e}")
+            pose = None
 
-    if len(buffer_snapshot) < Config.SEQUENCE_LENGTH:
-        result['activity'] = 'Collecting data...'
-        return result
+        track_info = {
+            'bbox':             bbox,
+            'activity':         'Collecting data...',
+            'confidence':       0.0,
+            'safe':             True,
+            'message':          'All safe',
+            'severity':         'low',
+            'alert_generated':  False,
+            'keypoints_frame':  None,
+        }
 
-    try:
-        with _recognizer_lock:
-            activity, confidence = activity_recognizer.predict_activity(
-                buffer_snapshot)
-    except Exception as e:
-        logger.error(f"Activity predict error: {e}")
-        return result
+        if pose is not None:
+            track_info['keypoints_frame'] = pose['keypoints_frame']
 
-    if not activity:
-        return result
+            keypoints_flat = pose['keypoints_crop'][:, :3].flatten()
+            with _processing_lock:
+                buf = keypoint_buffers.setdefault(track_id, [])
+                buf.append(keypoints_flat)
+                if len(buf) > Config.SEQUENCE_LENGTH:
+                    del buf[:-Config.SEQUENCE_LENGTH]
+                buffer_snapshot = list(buf)
 
-    result['activity']   = activity
-    result['confidence'] = float(confidence)
+            if len(buffer_snapshot) >= Config.SEQUENCE_LENGTH:
+                try:
+                    with _recognizer_lock:
+                        activity, confidence = (
+                            activity_recognizer.predict_activity(
+                                buffer_snapshot))
+                except Exception as e:
+                    logger.error(
+                        f"Activity predict error for track {track_id}: {e}")
+                    activity, confidence = None, 0.0
 
-    try:
-        safety = safety_engine.check_safety(
-            activity=activity,
-            confidence=confidence,
-            pose_keypoints=keypoints,
-            bbox=detections[0]['bbox'],
-            frame_time=datetime.now(),
-        )
-        result['safe']            = safety.get('safe', True)
-        result['message']         = safety.get('message', 'All safe')
-        result['severity']        = safety.get('severity', 'low')
-        result['alert']           = safety.get('alert')
-        result['alert_generated'] = safety.get('alert_generated', False)
-    except Exception as e:
-        logger.error(f"Safety check error: {e}")
+                if activity:
+                    track_info['activity']   = activity
+                    track_info['confidence'] = float(confidence)
+                    try:
+                        safety = safety_engine.check_safety(
+                            activity=activity,
+                            confidence=confidence,
+                            pose_keypoints=pose['keypoints_frame'],
+                            bbox=bbox,
+                            frame_time=datetime.now(),
+                        )
+                        track_info['safe']            = safety.get('safe', True)
+                        track_info['message']         = safety.get('message',
+                                                                   'All safe')
+                        track_info['severity']        = safety.get('severity',
+                                                                   'low')
+                        track_info['alert_generated'] = safety.get(
+                            'alert_generated', False)
+                    except Exception as e:
+                        logger.error(
+                            f"Safety check error for track {track_id}: {e}")
+
+        result['tracks'][track_id] = track_info
+
+        if not track_info['safe']:
+            aggregate_safe = False
+            if (SEVERITY_RANK.get(track_info['severity'], 0)
+                    >= SEVERITY_RANK.get(aggregate_severity, 0)):
+                aggregate_severity   = track_info['severity']
+                aggregate_message    = track_info['message']
+                aggregate_activity   = track_info['activity']
+                aggregate_confidence = track_info['confidence']
+                aggregate_bbox       = bbox
+
+        if track_info['alert_generated']:
+            aggregate_alert = True
+
+    result['safe']            = aggregate_safe
+    result['severity']        = aggregate_severity
+    result['message']         = aggregate_message
+    result['activity']        = aggregate_activity
+    result['confidence']      = aggregate_confidence
+    result['alert_generated'] = aggregate_alert
+    result['alert_bbox']      = aggregate_bbox
 
     return result
 
@@ -270,6 +330,7 @@ def annotate_frame(frame, result):
     annotated = frame.copy()
     safe = result.get('safe', True)
 
+    # Draw detection boxes.
     for det in result.get('detections', []):
         x1, y1, x2, y2 = det['bbox']
         color = (0, 255, 0) if safe else (0, 0, 255)
@@ -285,10 +346,16 @@ def annotate_frame(frame, result):
             cv2.LINE_AA,
         )
 
-    try:
-        annotated = pose_estimator.draw_pose(annotated)
-    except Exception:
-        pass
+    # Draw pose(s) per-track from the frame-space keypoints we stored.
+    for tid, info in result.get('tracks', {}).items():
+        kp = info.get('keypoints_frame')
+        if kp is None:
+            continue
+        color = (0, 255, 0) if info.get('safe', True) else (0, 0, 255)
+        try:
+            pose_estimator.draw_pose_from_keypoints(annotated, kp, color=color)
+        except Exception:
+            pass
 
     try:
         if result.get('tracks'):
@@ -299,9 +366,8 @@ def annotate_frame(frame, result):
     try:
         with _status_lock:
             fps = _current_status.get('fps', 0.0)
-            last_alerts = list(_current_status.get('alerts', []))[-3:]
-        # Guard against None accidentally entering the deque
-        last_alerts = [a for a in last_alerts if a is not None]
+            last_alerts = [a for a in _current_status.get('alerts', [])
+                           if a is not None][-3:]
         visualizer.fps = fps
         annotated = visualizer.draw_status(
             annotated,
@@ -319,13 +385,6 @@ def annotate_frame(frame, result):
 # =====================================================================
 #  ALERTS
 # =====================================================================
-def _safe_send_alert(alert_info):
-    try:
-        advanced_alert.send_alert(alert_info)
-    except Exception as e:
-        logger.error(f"Advanced alert error: {e}")
-
-
 def _next_alert_id_locked():
     return len(_alerts_list) + 1
 
@@ -338,16 +397,11 @@ def _append_alert_locked(alert_info):
     return list(_alerts_list)
 
 
-def _dispatch_alert(alert_info):
+def _emit_alert_socketio(alert_info):
     try:
         socketio.emit('alert', alert_info)
     except Exception:
         pass
-    try:
-        _alert_pool.submit(_safe_send_alert, alert_info)
-    except Exception as e:
-        logger.error(f"Alert submit failed: {e}")
-    logger.info(f"🚨 Alert: {alert_info['message']}")
 
 
 # =====================================================================
@@ -396,7 +450,7 @@ def _open_camera():
 
 def camera_reader_loop(cap):
     global camera, _reader_running, monitoring_active
-    global _last_boxes, _last_keypoints, _empty_detection_frames
+    global _last_boxes, _empty_detection_frames
 
     camera = cap
     for _ in range(5):
@@ -457,42 +511,49 @@ def camera_reader_loop(cap):
                 if span > 0:
                     fps = (len(frame_times) - 1) / span
 
+            # -----------------------------------------------
+            # publish status + generate alert (if triggered)
+            # -----------------------------------------------
             alert_info = None
             with _status_lock:
                 _current_status['activity']   = result.get('activity', 'None')
-                _current_status['confidence'] = float(result.get('confidence', 0.0))
+                _current_status['confidence'] = float(
+                    result.get('confidence', 0.0))
                 _current_status['safe']       = result.get('safe', True)
                 _current_status['fps']        = fps
 
-                # Only create a *new* alert when the safety engine has
-                # actually decided it is time (rate-limit / cooldown aware).
-                if (result.get('alert')
-                        and not result.get('safe', True)
-                        and result.get('alert_generated', False)):
-                    alert_info = {
-                        'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'message': result.get('message', 'Unsafe behaviour detected'),
-                        'severity': result.get('severity', 'medium'),
-                        'activity': result.get('activity', 'unknown'),
-                        'confidence': float(result.get('confidence', 0.0)),
-                        'source': 'live_feed',
-                    }
+            if (not result.get('safe', True)
+                    and result.get('alert_generated', False)
+                    and result.get('alert_bbox') is not None):
+                alert_info = alert_system.generate_alert(
+                    message=result.get('message',
+                                       'Unsafe behaviour detected'),
+                    severity=result.get('severity', 'medium'),
+                    activity=result.get('activity', 'unknown'),
+                    bbox=result.get('alert_bbox'),
+                    source='live_feed',
+                    confidence=float(result.get('confidence', 0.0)),
+                    send=False,   # don't block camera thread on HTTP
+                )
 
-            if alert_info is not None:
-                with _alerts_lock:
-                    snapshot = _append_alert_locked(alert_info)
-                with _status_lock:
-                    _current_status['alerts'] = snapshot
-                _dispatch_alert(alert_info)
+                if alert_info is not None:
+                    with _alerts_lock:
+                        snapshot = _append_alert_locked(alert_info)
+                    with _status_lock:
+                        _current_status['alerts'] = snapshot
+
+                    # Dispatch in the pool + notify socket clients.
+                    _alert_pool.submit(alert_system.send_alert, alert_info)
+                    _emit_alert_socketio(alert_info)
 
             if now - last_emit > 1.0:
                 last_emit = now
                 with _status_lock:
                     status_payload = {
-                        'activity': _current_status['activity'],
+                        'activity':   _current_status['activity'],
                         'confidence': _current_status['confidence'],
-                        'safe': _current_status['safe'],
-                        'fps': _current_status['fps'],
+                        'safe':       _current_status['safe'],
+                        'fps':        _current_status['fps'],
                     }
                 with _alerts_lock:
                     status_payload['alert_count'] = len(_alerts_list)
@@ -522,8 +583,7 @@ def camera_reader_loop(cap):
 
 def _start_reader():
     global _reader_thread, _reader_running, monitoring_active, _start_time
-    global _last_boxes, _last_keypoints, _empty_detection_frames
-    global _last_frame_for_capture
+    global _last_boxes, _empty_detection_frames, _last_frame_for_capture
 
     with _reader_lock:
         if _reader_running:
@@ -538,22 +598,22 @@ def _start_reader():
         monitoring_active = True
         _start_time       = datetime.now()
 
-        _last_boxes     = []
-        _last_keypoints = None
+        _last_boxes             = []
         _empty_detection_frames = 0
 
         with _processing_lock:
             keypoint_buffers.clear()
+        pose_estimator.forget_all_tracks()
 
         with _last_frame_lock:
             _last_frame_for_capture = None
 
         with _status_lock:
             _current_status['frame_count'] = 0
-            _current_status['fps'] = 0.0
-            _current_status['activity'] = 'None'
-            _current_status['confidence'] = 0.0
-            _current_status['safe'] = True
+            _current_status['fps']         = 0.0
+            _current_status['activity']    = 'None'
+            _current_status['confidence']  = 0.0
+            _current_status['safe']        = True
 
         _reader_thread = threading.Thread(
             target=camera_reader_loop, args=(cap,), daemon=True
@@ -579,7 +639,8 @@ def _stop_reader():
                 _reader_thread = None
 
         if thread.is_alive():
-            logger.warning("Camera reader thread did not stop within timeout.")
+            logger.warning(
+                "Camera reader thread did not stop within timeout.")
 
     if camera is not None and (thread is None or not thread.is_alive()):
         try:
@@ -593,12 +654,13 @@ def _stop_reader():
 
 
 # =====================================================================
-#  SYNTHETIC SEQUENCE HELPERS
+#  SYNTHETIC SEQUENCE HELPERS (image-upload path)
 # =====================================================================
 def create_synthetic_sequence(keypoints, seq_length=30):
     if keypoints is None:
         return None
-    base = keypoints[:, :3].flatten() if keypoints.shape[1] >= 3 else keypoints.flatten()
+    base = (keypoints[:, :3].flatten()
+            if keypoints.shape[1] >= 3 else keypoints.flatten())
     seq = []
     for i in range(seq_length):
         t = i / seq_length
@@ -620,10 +682,12 @@ def create_synthetic_sequence(keypoints, seq_length=30):
     return np.array(seq)
 
 
-def create_activity_specific_sequence(keypoints, activity_type='walking', seq_length=30):
+def create_activity_specific_sequence(keypoints, activity_type='walking',
+                                      seq_length=30):
     if keypoints is None:
         return None
-    base = keypoints[:, :3].flatten() if keypoints.shape[1] >= 3 else keypoints.flatten()
+    base = (keypoints[:, :3].flatten()
+            if keypoints.shape[1] >= 3 else keypoints.flatten())
     seq = []
     for i in range(seq_length):
         t = i / seq_length
@@ -644,11 +708,13 @@ def create_activity_specific_sequence(keypoints, activity_type='walking', seq_le
                 elif c == 1: variation[j] = 0.01 * np.cos(t * 2 * np.pi + kp * 0.1)
                 else:        variation[j] = 0.005 * np.sin(t * np.pi + kp * 0.05)
             elif activity_type == 'falling':
-                if c == 1:   variation[j] = -0.15 * (t ** 2) + 0.05 * np.sin(t * 2 * np.pi + kp * 0.1)
+                if c == 1:   variation[j] = (-0.15 * (t ** 2)
+                                             + 0.05 * np.sin(t * 2 * np.pi + kp * 0.1))
                 elif c == 0: variation[j] = 0.03 * np.sin(t * 4 * np.pi + kp * 0.2)
                 else:        variation[j] = 0.01 * np.sin(t * np.pi + kp * 0.1)
             elif activity_type == 'climbing':
-                if c == 1:   variation[j] = -0.08 * t + 0.04 * np.sin(t * 4 * np.pi + kp * 0.2)
+                if c == 1:   variation[j] = (-0.08 * t
+                                             + 0.04 * np.sin(t * 4 * np.pi + kp * 0.2))
                 elif c == 0: variation[j] = 0.05 * np.sin(t * 3 * np.pi + kp * 0.3)
                 else:        variation[j] = 0.02 * np.sin(t * 2 * np.pi + kp * 0.15)
             else:
@@ -687,6 +753,7 @@ def settings():
 @app.route('/api/status')
 def get_status():
     try:
+        # Unified stats: no more silent zeros.
         stats  = alert_system.get_alert_statistics()
         health = perf_monitor.get_health_status()
 
@@ -699,7 +766,8 @@ def get_status():
                 'frame_count': _current_status['frame_count'],
             }
         with _alerts_lock:
-            alerts_tail = [a for a in list(_alerts_list[-10:]) if a is not None]
+            alerts_tail = [a for a in list(_alerts_list[-10:])
+                           if a is not None]
             alert_count = len(_alerts_list)
         with _reader_lock:
             is_active = monitoring_active
@@ -745,7 +813,8 @@ def start_monitoring():
             active = monitoring_active
         if active:
             return jsonify({'status': 'already_running'})
-        return jsonify({'status': 'error', 'error': 'Could not open camera'}), 500
+        return jsonify({'status': 'error',
+                        'error': 'Could not open camera'}), 500
     except Exception as e:
         logger.error(f"start error: {e}")
         return jsonify({'error': str(e)}), 500
@@ -770,7 +839,7 @@ def reset_system():
         if was_running:
             _stop_reader()
 
-        global _last_boxes, _last_keypoints, _empty_detection_frames
+        global _last_boxes, _empty_detection_frames
         with _processing_lock:
             keypoint_buffers.clear()
         with _alerts_lock:
@@ -782,12 +851,13 @@ def reset_system():
             _current_status['safe']       = True
 
         _last_boxes             = []
-        _last_keypoints         = None
         _empty_detection_frames = 0
 
         activity_recognizer.reset_buffer()
         safety_engine.reset()
         tracker.reset()
+        pose_estimator.forget_all_tracks()
+        alert_system.reset()
 
         resumed = False
         if was_running:
@@ -817,7 +887,7 @@ def process_single_image_enhanced(frame):
     result = {
         'activity': 'None', 'confidence': 0.0, 'safe': True,
         'message': 'All safe', 'severity': 'low', 'alert': None,
-        'detections': [], 'has_child': False,
+        'alert_generated': False, 'detections': [], 'has_child': False,
         'processed_image': None, 'pose_detected': False,
     }
     try:
@@ -829,11 +899,13 @@ def process_single_image_enhanced(frame):
             result['processed_image'] = _encode_b64(frame)
             return result
 
-        keypoints = pose_estimator.extract_keypoints(frame)
-        result['pose_detected'] = keypoints is not None
-
-        if keypoints is None:
-            result['message'] = 'Pose not detected. Ensure person is clearly visible.'
+        # Per-person pose on the first detected person's crop.
+        bbox = detections[0]['bbox']
+        pose = pose_estimator.extract_keypoints_from_bbox(
+            frame, bbox, track_id=None)
+        if pose is None:
+            result['message'] = (
+                'Pose not detected. Ensure person is clearly visible.')
             vis = frame.copy()
             for det in detections:
                 x1, y1, x2, y2 = det['bbox']
@@ -841,11 +913,18 @@ def process_single_image_enhanced(frame):
             result['processed_image'] = _encode_b64(vis)
             return result
 
+        keypoints = pose['keypoints_frame']
+        result['pose_detected'] = True
+
+        # NOTE: on a single image we cannot truly run temporal activity
+        # recognition. The helpers below synthesize a short sequence and
+        # take the argmax over the classifier — this is a heuristic
+        # posture estimate, not a real activity prediction.
         activities = ['walking', 'running', 'sitting', 'falling', 'climbing']
         best_activity, best_conf = None, 0.0
         for act in activities:
-            seq = create_activity_specific_sequence(keypoints, act,
-                                                    Config.SEQUENCE_LENGTH)
+            seq = create_activity_specific_sequence(
+                keypoints, act, Config.SEQUENCE_LENGTH)
             if seq is None:
                 continue
             try:
@@ -874,25 +953,24 @@ def process_single_image_enhanced(frame):
                 activity=best_activity,
                 confidence=best_conf,
                 pose_keypoints=keypoints,
-                bbox=detections[0]['bbox'],
+                bbox=bbox,
                 frame_time=datetime.now(),
             )
-            result['safe']     = safety.get('safe', True)
-            result['message']  = safety.get('message', 'All safe')
-            result['severity'] = safety.get('severity', 'low')
-            result['alert']    = safety.get('alert')
+            result['safe']            = safety.get('safe', True)
+            result['message']         = safety.get('message', 'All safe')
+            result['severity']        = safety.get('severity', 'low')
+            result['alert']           = safety.get('alert')
             result['alert_generated'] = safety.get('alert_generated', False)
         else:
-            result['message'] = (
-                f'Activity not recognized with sufficient confidence '
-                f'({best_conf:.2%})')
+            result['message'] = (f'Activity not recognized with sufficient '
+                                 f'confidence ({best_conf:.2%})')
 
         vis = frame.copy()
         for det in detections:
             x1, y1, x2, y2 = det['bbox']
             color = (0, 255, 0) if result['safe'] else (0, 0, 255)
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-        vis = pose_estimator.draw_pose(vis)
+        pose_estimator.draw_pose_from_keypoints(vis, keypoints)
         result['processed_image'] = _encode_b64(vis)
     except Exception as e:
         logger.error(f"process_single_image_enhanced error: {e}")
@@ -910,8 +988,8 @@ def upload_image():
         return jsonify({'error': 'No image selected'}), 400
 
     try:
-        data = file.read()
-        arr  = np.frombuffer(data, np.uint8)
+        data  = file.read()
+        arr   = np.frombuffer(data, np.uint8)
         frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
         if frame is None:
             return jsonify({'error': 'Invalid image'}), 400
@@ -926,32 +1004,35 @@ def upload_image():
                 _current_status['safe']       = result.get('safe', True)
 
             if (not result.get('safe', True)
-                    and result.get('alert')
-                    and result.get('alert_generated', False)):
-                alert_info = {
-                    'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                    'message': result.get(
-                        'message', f'Unsafe activity: {result["activity"]}'),
-                    'severity': result.get('severity', 'high'),
-                    'activity': result.get('activity', 'unknown'),
-                    'confidence': float(result.get('confidence', 0.0)),
-                    'source': 'image_upload',
-                }
-                with _alerts_lock:
-                    snapshot = _append_alert_locked(alert_info)
-                with _status_lock:
-                    _current_status['alerts'] = snapshot
+                    and result.get('alert_generated', False)
+                    and result.get('detections')):
+                alert_info = alert_system.generate_alert(
+                    message=result.get('message',
+                                       f'Unsafe activity: {result["activity"]}'),
+                    severity=result.get('severity', 'high'),
+                    activity=result.get('activity', 'unknown'),
+                    bbox=result['detections'][0]['bbox'],
+                    source='image_upload',
+                    confidence=float(result.get('confidence', 0.0)),
+                    send=False,
+                )
+                if alert_info is not None:
+                    with _alerts_lock:
+                        snapshot = _append_alert_locked(alert_info)
+                    with _status_lock:
+                        _current_status['alerts'] = snapshot
 
         if alert_info is not None:
-            _dispatch_alert(alert_info)
+            _alert_pool.submit(alert_system.send_alert, alert_info)
+            _emit_alert_socketio(alert_info)
 
         with _status_lock:
             status_payload = {
-                'activity':    _current_status.get('activity', 'None'),
-                'confidence':  _current_status.get('confidence', 0.0),
-                'safe':        _current_status.get('safe', True),
-                'fps':         _current_status.get('fps', 0.0),
-                'source':      'image_upload',
+                'activity':   _current_status.get('activity', 'None'),
+                'confidence': _current_status.get('confidence', 0.0),
+                'safe':       _current_status.get('safe', True),
+                'fps':        _current_status.get('fps', 0.0),
+                'source':     'image_upload',
             }
         with _alerts_lock:
             status_payload['alert_count'] = len(_alerts_list)
@@ -989,7 +1070,8 @@ def capture_frame():
     os.makedirs(Config.CAPTURES_DIR, exist_ok=True)
     path = os.path.join(Config.CAPTURES_DIR, fname)
     cv2.imwrite(path, frame)
-    return jsonify({'filename': fname, 'path': path, 'url': f'/captures/{fname}'})
+    return jsonify({'filename': fname, 'path': path,
+                    'url': f'/captures/{fname}'})
 
 
 @app.route('/api/performance')
@@ -1010,10 +1092,11 @@ def manage_settings():
     if request.method == 'GET':
         try:
             return jsonify({
-                'enabled_methods':      advanced_alert.config.get('enabled_methods', ['desktop']),
-                'email':                advanced_alert.config.get('email', {}),
-                'telegram':             advanced_alert.config.get('telegram', {}),
-                'throttling':           advanced_alert.config.get('throttling', {}),
+                'enabled_methods':      alert_system.config.get(
+                    'enabled_methods', ['desktop']),
+                'email':                alert_system.config.get('email', {}),
+                'telegram':             alert_system.config.get('telegram', {}),
+                'throttling':           alert_system.config.get('throttling', {}),
                 'yolo_model':           Config.YOLO_MODEL,
                 'confidence_threshold': Config.CONFIDENCE_THRESHOLD,
                 'sequence_length':      Config.SEQUENCE_LENGTH,
@@ -1025,14 +1108,14 @@ def manage_settings():
     try:
         data = request.json or {}
         if 'enabled_methods' in data:
-            advanced_alert.config['enabled_methods'] = data['enabled_methods']
+            alert_system.config['enabled_methods'] = data['enabled_methods']
         for key in ('email', 'telegram', 'throttling'):
             if key in data:
-                advanced_alert.config.setdefault(key, {}).update(data[key])
+                alert_system.config.setdefault(key, {}).update(data[key])
         with _config_write_lock:
             with open(Config.ALERT_CONFIG_PATH, 'w') as f:
-                json.dump(advanced_alert.config, f, indent=2)
-            advanced_alert.reload_config()
+                json.dump(alert_system.config, f, indent=2)
+            alert_system.reload_config()
         return jsonify({'status': 'updated'})
     except Exception as e:
         logger.error(f"settings error: {e}")
@@ -1049,7 +1132,8 @@ def export_alerts():
             return jsonify({'alerts': alerts})
         if fmt == 'csv':
             out = io.StringIO()
-            fields = ['id', 'timestamp', 'severity', 'activity', 'message', 'source']
+            fields = ['id', 'timestamp', 'severity', 'activity',
+                      'message', 'source']
             writer = csv.DictWriter(out, fieldnames=fields)
             writer.writeheader()
             for a in alerts:
@@ -1058,7 +1142,8 @@ def export_alerts():
                 out.getvalue(),
                 mimetype='text/csv',
                 headers={'Content-Disposition':
-                         f'attachment; filename=alerts_{datetime.now().strftime("%Y%m%d")}.csv'},
+                         f'attachment; filename=alerts_'
+                         f'{datetime.now().strftime("%Y%m%d")}.csv'},
             )
         return jsonify({'error': 'Invalid format'}), 400
     except Exception as e:
@@ -1075,7 +1160,8 @@ def video_feed():
         generate_video_feed(),
         mimetype='multipart/x-mixed-replace; boundary=frame',
     )
-    resp.headers['Cache-Control']     = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Cache-Control']     = (
+        'no-store, no-cache, must-revalidate, max-age=0')
     resp.headers['Pragma']            = 'no-cache'
     resp.headers['X-Accel-Buffering'] = 'no'
     resp.headers['Connection']        = 'close'
@@ -1083,8 +1169,8 @@ def video_feed():
 
 
 def generate_video_feed():
-    placeholder = np.zeros((Config.FRAME_HEIGHT, Config.FRAME_WIDTH, 3),
-                           dtype=np.uint8)
+    placeholder = np.zeros(
+        (Config.FRAME_HEIGHT, Config.FRAME_WIDTH, 3), dtype=np.uint8)
     cv2.putText(placeholder, "Stream idle - press Start",
                 (30, Config.FRAME_HEIGHT // 2),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 200, 200), 2, cv2.LINE_AA)
@@ -1110,10 +1196,12 @@ def generate_video_feed():
                             [cv2.IMWRITE_JPEG_QUALITY, 60]
                         )
                         if ok:
-                            yield (b'--frame\r\n'
-                                   b'Content-Type: image/jpeg\r\n'
-                                   b'Content-Length: ' + str(len(jpeg)).encode() + b'\r\n\r\n'
-                                   + jpeg.tobytes() + b'\r\n')
+                            yield (
+                                b'--frame\r\n'
+                                b'Content-Type: image/jpeg\r\n'
+                                b'Content-Length: '
+                                + str(len(jpeg)).encode() + b'\r\n\r\n'
+                                + jpeg.tobytes() + b'\r\n')
                 continue
 
             ok, jpeg = cv2.imencode(
@@ -1123,10 +1211,12 @@ def generate_video_feed():
             if not ok:
                 continue
 
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n'
-                   b'Content-Length: ' + str(len(jpeg)).encode() + b'\r\n\r\n'
-                   + jpeg.tobytes() + b'\r\n')
+            yield (
+                b'--frame\r\n'
+                b'Content-Type: image/jpeg\r\n'
+                b'Content-Length: '
+                + str(len(jpeg)).encode() + b'\r\n\r\n'
+                + jpeg.tobytes() + b'\r\n')
     finally:
         with _subscribers_lock:
             _subscribers.discard(q)
@@ -1158,7 +1248,8 @@ def serve_alert_image(filename):
 def handle_connect():
     logger.info(f"Client connected: {request.sid}")
     emit('connected', {'status': 'connected',
-                       'timestamp': datetime.now().isoformat()})
+                       'timestamp': datetime.now().isoformat()},
+         to=request.sid)
 
 
 @socketio.on('disconnect')
@@ -1236,14 +1327,18 @@ def open_brave_browser(port):
     url = f'http://localhost:{port}'
     brave_paths = [
         r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
-        os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser"
+        r"\Application\brave.exe",
+        os.path.expandvars(
+            r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser"
+            r"\Application\brave.exe"),
         "brave.exe",
     ]
     for p in brave_paths:
         try:
             if os.path.exists(p):
-                webbrowser.register('brave', None, webbrowser.GenericBrowser(p))
+                webbrowser.register(
+                    'brave', None, webbrowser.GenericBrowser(p))
                 webbrowser.get('brave').open(url)
                 logger.info(f"Brave opened at {url}")
                 return
@@ -1270,6 +1365,7 @@ def find_available_port(start_port=5000, max_port=5010):
 def _shutdown():
     try:
         _stop_reader()
+        pose_estimator.close()
         perf_monitor.stop_monitoring()
     except Exception:
         pass
@@ -1277,6 +1373,7 @@ def _shutdown():
         _alert_pool.shutdown(wait=False)
     except Exception:
         pass
+
 
 atexit.register(_shutdown)
 
