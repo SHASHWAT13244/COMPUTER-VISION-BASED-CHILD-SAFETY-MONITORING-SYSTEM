@@ -1,0 +1,18 @@
+{
+  "created": "2026-09-22T12:57:25.477041",
+  "num_samples": 462,
+  "num_classes": 5,
+  "classes": [
+    "walking",
+    "running",
+    "sitting",
+    "falling",
+    "climbing"
+  ],
+  "sequence_length": 30,
+  "num_keypoints": 33,
+  "feature_shape": [
+    30,
+    99
+  ]
+}
