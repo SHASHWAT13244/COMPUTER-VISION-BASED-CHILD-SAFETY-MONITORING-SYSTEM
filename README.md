@@ -564,11 +564,10 @@ The model was evaluated on a held-out test set of **91 samples** across 5 activi
 ### Key Observations
 
 * ✅ **Best performing class:** Sitting (F1: 95.83%)
-* ⚠️ **Class needing improvement:** Falling (F1: 66.67%) — limited by only 4 test samples
+* ⚠️ **Class needing improvement:** Falling (F1: 66.67%) 
 * 📈 All classes exceed the 80% target F1-score except falling
 * 🎯 Overall accuracy of 90.11% indicates strong generalization
 
-> **Note:** The falling class has a small support (4 samples), which affects its recall. Collecting more falling samples and applying data augmentation is recommended for future iterations.
 
 ---
 
