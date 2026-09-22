@@ -1,7 +1,7 @@
 # data_preparation.py
 """
 Data Preparation Script for Child Safety Monitoring System
-Extracts pose keypoints from videos and prepares training data
+Extracts pose keypoints from videos and prepares training data.
 """
 
 import os
@@ -29,7 +29,8 @@ logger = logging.getLogger(__name__)
 class DataPreparator:
     """Prepare training data from videos."""
 
-    def __init__(self, sequence_length=30, num_keypoints=33, min_detection_confidence=0.5):
+    def __init__(self, sequence_length=30, num_keypoints=33,
+                 min_detection_confidence=0.5):
         self.sequence_length = sequence_length
         self.num_keypoints = num_keypoints
         self.min_detection_confidence = min_detection_confidence
@@ -44,6 +45,10 @@ class DataPreparator:
 
         self.activities = list(Config.ACTIVITY_CLASSES)
 
+        # Lazy-loaded detector (used for cropping each person's bbox so
+        # training keypoints are person-relative and match inference).
+        self._detector = None
+
     def __enter__(self):
         return self
 
@@ -56,11 +61,62 @@ class DataPreparator:
         except Exception:
             pass
 
+    # ------------------------------------------------------------------ #
+    # detector helper
+    # ------------------------------------------------------------------ #
+    def _get_detector(self):
+        if self._detector is None:
+            # Import lazily to avoid pulling ultralytics at module import time
+            from models.detector import ChildDetector
+            self._detector = ChildDetector(
+                model_path=Config.YOLO_MODEL,
+                conf_threshold=Config.CONFIDENCE_THRESHOLD,
+                iou_threshold=Config.IOU_THRESHOLD,
+            )
+        return self._detector
+
+    @staticmethod
+    def _pick_largest_bbox(detections):
+        if not detections:
+            return None
+        detections = sorted(
+            detections,
+            key=lambda d: ((d['bbox'][2] - d['bbox'][0]) *
+                           (d['bbox'][3] - d['bbox'][1])),
+            reverse=True,
+        )
+        return detections[0]['bbox']
+
+    @staticmethod
+    def _pad_crop_bbox(bbox, frame_shape, pad=0.15):
+        h, w = frame_shape[:2]
+        x1, y1, x2, y2 = (int(v) for v in bbox)
+        bw, bh = x2 - x1, y2 - y1
+        if bw <= 0 or bh <= 0:
+            return None
+        px = int(bw * pad)
+        py = int(bh * pad)
+        cx1 = max(0, x1 - px)
+        cy1 = max(0, y1 - py)
+        cx2 = min(w, x2 + px)
+        cy2 = min(h, y2 + py)
+        if cx2 - cx1 < 8 or cy2 - cy1 < 8:
+            return None
+        return cx1, cy1, cx2, cy2
+
+    # ------------------------------------------------------------------ #
+    # extraction
+    # ------------------------------------------------------------------ #
     def extract_sequences_from_video(self, video_path):
+        """Extract pose sequences from a video, cropping each person's bbox
+        so keypoints are person-relative (matches inference-time normalization).
+        """
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             logger.error(f"Could not open video: {video_path}")
             return []
+
+        detector = self._get_detector()
 
         sequences = []
         current_sequence = []
@@ -74,30 +130,52 @@ class DataPreparator:
                     break
 
                 frame_count += 1
-                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = self.pose.process(rgb_frame)
 
-                if results.pose_landmarks:
-                    keypoints = []
-                    for landmark in results.pose_landmarks.landmark:
-                        keypoints.extend([landmark.x, landmark.y, landmark.z])
+                # 1) Detect the person and crop.
+                try:
+                    detections = detector.detect(frame)
+                except Exception as e:
+                    logger.debug(f"Detection failed on frame {frame_count}: {e}")
+                    detections = []
+
+                bbox = self._pick_largest_bbox(detections)
+                crop_box = None
+                if bbox is not None:
+                    crop_box = self._pad_crop_bbox(bbox, frame.shape)
+
+                keypoints = None
+                if crop_box is not None:
+                    cx1, cy1, cx2, cy2 = crop_box
+                    crop = frame[cy1:cy2, cx1:cx2]
+                    if crop.size > 0:
+                        rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+                        results = self.pose.process(rgb)
+                        if results.pose_landmarks:
+                            flat = []
+                            for lm in results.pose_landmarks.landmark:
+                                flat.extend([lm.x, lm.y, lm.z])
+                            keypoints = flat
+
+                # 2) Buffer the pose (or hold last valid one on gap).
+                if keypoints is not None:
                     current_sequence.append(keypoints)
                     success_count += 1
+                elif current_sequence:
+                    # Hold the last valid frame instead of inserting zeros.
+                    current_sequence.append(current_sequence[-1])
 
-                    if len(current_sequence) == self.sequence_length:
-                        sequences.append(np.array(current_sequence))
-                        current_sequence = []
-                else:
-                    if current_sequence:
-                        current_sequence.append(np.zeros(self.num_keypoints * 3))
-                        if len(current_sequence) == self.sequence_length:
-                            sequences.append(np.array(current_sequence))
-                            current_sequence = []
+                if len(current_sequence) == self.sequence_length:
+                    sequences.append(np.array(current_sequence))
+                    current_sequence = []
+
         finally:
             cap.release()
 
-        logger.info(f"  Processed {frame_count} frames, {success_count} with pose, "
-                    f"extracted {len(sequences)} sequences")
+        logger.info(
+            f"  Processed {frame_count} frames, "
+            f"{success_count} with pose, "
+            f"extracted {len(sequences)} sequences"
+        )
         return sequences
 
     def prepare_data_from_videos(self, data_dir='data/activities',
@@ -142,7 +220,8 @@ class DataPreparator:
                     y_data.append(activity_idx)
                 activity_sequences += len(sequences)
 
-            logger.info(f"   Extracted {activity_sequences} sequences for {activity}")
+            logger.info(
+                f"   Extracted {activity_sequences} sequences for {activity}")
             total_sequences += activity_sequences
 
         if not X_data:
@@ -168,13 +247,13 @@ class DataPreparator:
         logger.info(f"\n✅ Data saved to {output_path}")
 
         metadata = {
-            'created': datetime.now().isoformat(),
-            'num_samples': len(X_data),
-            'num_classes': len(self.activities),
-            'classes': self.activities,
+            'created':         datetime.now().isoformat(),
+            'num_samples':     len(X_data),
+            'num_classes':     len(self.activities),
+            'classes':         self.activities,
             'sequence_length': self.sequence_length,
-            'num_keypoints': self.num_keypoints,
-            'feature_shape': list(X_data.shape[1:]),
+            'num_keypoints':   self.num_keypoints,
+            'feature_shape':   list(X_data.shape[1:]),
         }
         metadata_path = output_path.with_suffix('.json')
         with open(metadata_path, 'w') as f:
@@ -194,7 +273,7 @@ class DataPreparator:
 
         readme_path = data_path / 'README.txt'
         with open(readme_path, 'w') as f:
-            f.write("""
+            f.write(f"""
 CHILD SAFETY MONITORING - TRAINING DATA
 
 Directory Structure:
@@ -222,8 +301,8 @@ For best results:
 - Use different backgrounds
 - Videos should be 10-30 seconds long
 
-Created: {}
-""".format(datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+Created: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+""")
 
         logger.info(f"✅ Created: {readme_path}")
         logger.info("\n📝 Instructions:")
@@ -241,36 +320,37 @@ Created: {}
 
         logger.info(f"Generating {num_samples} synthetic sequences per class...")
 
-        NOSE_X        = 0 * 3
-        L_ANKLE_X     = 27 * 3
-        R_ANKLE_X     = 28 * 3
-        L_SHOULDER_Y  = 11 * 3 + 1
-        R_SHOULDER_Y  = 12 * 3 + 1
-        L_HIP_Y       = 23 * 3 + 1
-        R_HIP_Y       = 24 * 3 + 1
-        L_KNEE_Y      = 25 * 3 + 1
-        R_KNEE_Y      = 26 * 3 + 1
+        NOSE_X       = 0 * 3
+        L_ANKLE_X    = 27 * 3
+        R_ANKLE_X    = 28 * 3
+        L_SHOULDER_Y = 11 * 3 + 1
+        R_SHOULDER_Y = 12 * 3 + 1
+        L_HIP_Y      = 23 * 3 + 1
+        R_HIP_Y      = 24 * 3 + 1
+        L_KNEE_Y     = 25 * 3 + 1
+        R_KNEE_Y     = 26 * 3 + 1
 
         for activity_idx, activity in enumerate(self.activities):
             for _ in tqdm(range(num_samples), desc=f"   {activity}"):
-                sequence = np.random.rand(self.sequence_length, self.num_keypoints * 3)
+                sequence = np.random.rand(
+                    self.sequence_length, self.num_keypoints * 3)
 
                 if activity == 'walking':
                     for i in range(self.sequence_length):
-                        sequence[i, NOSE_X]       += 0.10 * np.sin(i * 0.2)
-                        sequence[i, L_ANKLE_X]    += 0.10 * np.sin(i * 0.2 + 1)
-                        sequence[i, R_ANKLE_X]    += 0.10 * np.sin(i * 0.2 + 2)
+                        sequence[i, NOSE_X]    += 0.10 * np.sin(i * 0.2)
+                        sequence[i, L_ANKLE_X] += 0.10 * np.sin(i * 0.2 + 1)
+                        sequence[i, R_ANKLE_X] += 0.10 * np.sin(i * 0.2 + 2)
                 elif activity == 'running':
                     for i in range(self.sequence_length):
-                        sequence[i, NOSE_X]       += 0.20 * np.sin(i * 0.4)
-                        sequence[i, L_ANKLE_X]    += 0.20 * np.sin(i * 0.4 + 1)
-                        sequence[i, R_ANKLE_X]    += 0.20 * np.sin(i * 0.4 + 2)
+                        sequence[i, NOSE_X]    += 0.20 * np.sin(i * 0.4)
+                        sequence[i, L_ANKLE_X] += 0.20 * np.sin(i * 0.4 + 1)
+                        sequence[i, R_ANKLE_X] += 0.20 * np.sin(i * 0.4 + 2)
                 elif activity == 'sitting':
                     for i in range(self.sequence_length):
-                        sequence[i, L_HIP_Y]   = 0.5
-                        sequence[i, R_HIP_Y]   = 0.5
-                        sequence[i, L_KNEE_Y]  = 0.5
-                        sequence[i, R_KNEE_Y]  = 0.5
+                        sequence[i, L_HIP_Y]  = 0.5
+                        sequence[i, R_HIP_Y]  = 0.5
+                        sequence[i, L_KNEE_Y] = 0.5
+                        sequence[i, R_KNEE_Y] = 0.5
                 elif activity == 'falling':
                     for i in range(self.sequence_length):
                         decay = 0.02 * i
@@ -332,7 +412,8 @@ Created: {}
             logger.info(f"    Activity: {activity}")
             logger.info(f"    Sequence shape: {X[idx].shape}")
             logger.info(f"    Min: {X[idx].min():.3f}, Max: {X[idx].max():.3f}")
-            logger.info(f"    Mean: {X[idx].mean():.3f}, Std: {X[idx].std():.3f}")
+            logger.info(f"    Mean: {X[idx].mean():.3f}, "
+                        f"Std: {X[idx].std():.3f}")
 
         logger.info("\nClass distribution:")
         for idx, activity in enumerate(self.activities):
@@ -350,7 +431,8 @@ def main():
     parser.add_argument('--process', action='store_true',
                         help='Process videos and extract features')
     parser.add_argument('--synthetic', type=int, nargs='?', const=100,
-                        help='Generate synthetic data (default: 100 samples per class)')
+                        help='Generate synthetic data '
+                             '(default: 100 samples per class)')
     parser.add_argument('--preview', type=str, nargs='?',
                         const='data/training_data.npz',
                         help='Preview data (default: data/training_data.npz)')
